@@ -10,5 +10,3 @@ class ProgramState:
         self.last_directory = "C:\\"
         self.preferred_width = 800
         self.preferred_height = 600
-        self.preferred_x = 100
-        self.preferred_y = 100

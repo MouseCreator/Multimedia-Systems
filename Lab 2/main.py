@@ -105,7 +105,7 @@ class MainWindow(QMainWindow):
         self.setObjectName("MainWindow")
         self.setWindowTitle("M_o_u_s_e Music Player")
         state = State().get().access()
-        self.setGeometry(state.preferred_x, state.preferred_y, state.preferred_width, state.preferred_height)
+        self.resize(state.preferred_width, state.preferred_height)
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setObjectName("centralwidget")
         self.setCentralWidget(self.centralwidget)
