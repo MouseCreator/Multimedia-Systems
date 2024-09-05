@@ -61,40 +61,41 @@ class PlayStopButton(MHoverAbleButton):
         self.update_button_icon()
 
 
-class MenuBarController(QMenuBar):
-    @staticmethod
-    def create_bar(parent):
-        bar = QtWidgets.QMenuBar(parent)
-        bar.setGeometry(0, 0, 800, 21)
-        bar.setObjectName("menubar")
-        bar.menuFile = QtWidgets.QMenu("File", bar)
-        bar.menuFile.setObjectName("menuFile")
+class MenuBar(QMenuBar):
+    def on_exit(self):
+        self.parent_window.close()
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent_window = parent
+        self.setGeometry(0, 0, 800, 21)
+        self.setObjectName("menubar")
+        self.menuFile = QtWidgets.QMenu("File", self)
+        self.menuFile.setObjectName("menuFile")
 
-        bar.menuOptions = QtWidgets.QMenu("Help", bar)
-        bar.menuOptions.setObjectName("menuOptions")
+        self.menuOptions = QtWidgets.QMenu("Help", self)
+        self.menuOptions.setObjectName("menuOptions")
 
-        bar.actionOpen = QtWidgets.QAction("Open", bar)
-        bar.actionOpen.setObjectName("actionOpen")
-        bar.actionExport_As = QtWidgets.QAction("Export As", bar)
-        bar.actionExport_As.setObjectName("actionExport_As")
-        bar.actionClose = QtWidgets.QAction("Close", bar)
-        bar.actionClose.setObjectName("actionClose")
-        bar.actionManual = QtWidgets.QAction("Manual", bar)
-        bar.actionManual.setObjectName("actionManual")
-        bar.actionConfig = QtWidgets.QAction("Properties", bar)
-        bar.actionConfig.setObjectName("actionConfig")
+        self.actionOpen = QtWidgets.QAction("Open", self)
+        self.actionOpen.setObjectName("actionOpen")
+        self.actionExport_As = QtWidgets.QAction("Export As", self)
+        self.actionExport_As.setObjectName("actionExport_As")
+        self.actionClose = QtWidgets.QAction("Exit", self)
+        self.actionClose.setObjectName("actionClose")
+        self.actionClose.triggered.connect(self.on_exit)
+        self.actionManual = QtWidgets.QAction("Manual", self)
+        self.actionManual.setObjectName("actionManual")
+        self.actionConfig = QtWidgets.QAction("Properties", self)
+        self.actionConfig.setObjectName("actionConfig")
 
-        bar.menuFile.addAction(bar.actionOpen)
-        bar.menuFile.addAction(bar.actionExport_As)
-        bar.menuFile.addAction(bar.actionClose)
+        self.menuFile.addAction(self.actionOpen)
+        self.menuFile.addAction(self.actionExport_As)
+        self.menuFile.addAction(self.actionClose)
 
-        bar.menuOptions.addAction(bar.actionManual)
-        bar.menuOptions.addAction(bar.actionConfig)
+        self.menuOptions.addAction(self.actionManual)
+        self.menuOptions.addAction(self.actionConfig)
 
-        bar.addMenu(bar.menuFile)
-        bar.addMenu(bar.menuOptions)
-
-        return bar
+        self.addMenu(self.menuFile)
+        self.addMenu(self.menuOptions)
 
 
 
@@ -108,7 +109,7 @@ class MainWindow(QMainWindow):
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setObjectName("centralwidget")
         self.setCentralWidget(self.centralwidget)
-        self.menubar = MenuBarController.create_bar(self)
+        self.menubar = MenuBar(self)
         self.setMenuBar(self.menubar)
 
     def __init__(self):
