@@ -11,11 +11,12 @@ class ProgramState:
         self.preferred_width = 800
         self.preferred_height = 600
 
-
+# types: audio / video / stream / none
 class LoadedTrack:
     def __init__(self):
-        self.is_video = False
+        self.type = 'audio'
         self.is_playing = False
         self.duration_seconds = 70
         self.current_second = 10
         self.track_name = "Mouse.mp3"
+        self.track_file = "D:\Mouse.mp3"

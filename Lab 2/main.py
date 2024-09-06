@@ -1,8 +1,11 @@
 import sys
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QMainWindow, QMenuBar
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QMainWindow, QMenuBar, QFileDialog
 from PyQt5.QtGui import QIcon
-from state_manager import State
+from PyQt5.QtMultimedia import QMediaPlayer
+from PyQt5.QtMultimediaWidgets import QVideoWidget
+from state_manager import State, PlayerService
 
 
 class MHoverAbleButton(QPushButton):
@@ -76,8 +79,11 @@ class MenuBar(QMenuBar):
         self.menuOptions = QtWidgets.QMenu("Help", self)
         self.menuOptions.setObjectName("menuOptions")
 
-        self.actionOpen = QtWidgets.QAction("Open", self)
+        self.actionOpen = QtWidgets.QAction("Open File", self)
         self.actionOpen.setObjectName("actionOpen")
+        self.actionOpen.triggered.connect(self.on_open)
+        self.actionLoad = QtWidgets.QAction("Load URL", self)
+        self.actionLoad.setObjectName("actionLoad")
         self.actionExport_As = QtWidgets.QAction("Export As", self)
         self.actionExport_As.setObjectName("actionExport_As")
         self.actionClose = QtWidgets.QAction("Exit", self)
@@ -89,6 +95,7 @@ class MenuBar(QMenuBar):
         self.actionConfig.setObjectName("actionConfig")
 
         self.menuFile.addAction(self.actionOpen)
+        self.menuFile.addAction(self.actionLoad)
         self.menuFile.addAction(self.actionExport_As)
         self.menuFile.addAction(self.actionClose)
 
@@ -97,6 +104,29 @@ class MenuBar(QMenuBar):
 
         self.addMenu(self.menuFile)
         self.addMenu(self.menuOptions)
+
+    def on_open(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "Open")
+        load_successful = PlayerService.state_from_file(filename)
+        self.parent_window.on_file_loaded(load_successful)
+
+
+class Player(QVBoxLayout):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.mediaPlayer = QMediaPlayer(parent, QMediaPlayer.VideoSurface)
+        self.videoWidget = QVideoWidget()
+        self.addWidget(self.videoWidget)
+        self.mediaPlayer.setVideoOutput(self.videoWidget)
+    # Events ??
+    def toggle_playing(self, to_play):
+        if to_play:
+            self.mediaPlayer.play()
+        else:
+            self.mediaPlayer.pause()
+
+    def is_playing(self):
+        return self.mediaPlayer.state() == QMediaPlayer.PlayingState
 
 
 class ProgressBar(QVBoxLayout):
@@ -110,7 +140,7 @@ class ProgressBar(QVBoxLayout):
         self.current_time_label = QtWidgets.QLabel()
         self.current_time_label.setText(f"{track.current_second}")
 
-        self.slider = QtWidgets.QSlider()
+        self.slider = QtWidgets.QSlider(Qt.Horizontal)
 
         self.duration_label = QtWidgets.QLabel()
         self.duration_label.setText(f"{track.duration_seconds}")
@@ -126,7 +156,7 @@ class MainWindow(QMainWindow):
 
     def setupUi(self):
         self.setObjectName("MainWindow")
-        self.setWindowTitle("M_o_u_s_e Music Player")
+        self.setWindowTitle("M_o_u_s_e Player")
         state = State().get().access()
         self.resize(state.preferred_width, state.preferred_height)
         self.centralwidget = QtWidgets.QWidget(self)
@@ -142,6 +172,8 @@ class MainWindow(QMainWindow):
         self.layout = QVBoxLayout()
         self.tools = QHBoxLayout()
         self.bar = ProgressBar(self)
+        self.player = Player(self)
+        self.layout.addLayout(self.player)
         self.layout.addLayout(self.bar)
         self.layout.addLayout(self.tools)
         self.play_stop_button = PlayStopButton(self)
@@ -149,6 +181,10 @@ class MainWindow(QMainWindow):
         self.tools.addWidget(self.play_stop_button)
         self.tools.addWidget(self.looping_checkbox)
         self.centralwidget.setLayout(self.layout)
+
+    def on_file_loaded(self, load_successful):
+        if not load_successful:
+            return
 
 
 if __name__ == '__main__':

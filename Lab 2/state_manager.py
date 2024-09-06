@@ -57,3 +57,16 @@ class State:
         if not hasattr(State, "_instance"):
             State._instance = ProgramStateManager()
         return State._instance
+
+
+class PlayerService:
+    @staticmethod
+    def state_from_file(filename):
+        if not filename:
+            return False
+        state = State.get().access()
+        state.track.track_name = filename
+        state.track.track_file = filename
+        state.track.is_playing = state.play_on_load
+        return True
+
