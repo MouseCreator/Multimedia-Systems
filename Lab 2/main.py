@@ -1,6 +1,6 @@
 import sys
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtWidgets import QApplication, QPushButton, QHBoxLayout, QMainWindow, QMenuBar
+from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QMainWindow, QMenuBar
 from PyQt5.QtGui import QIcon
 from state_manager import State
 
@@ -8,7 +8,7 @@ from state_manager import State
 class MHoverAbleButton(QPushButton):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setFixedSize(64, 64)
+        self.setFixedSize(48, 48)
         self.setIconSize(self.size())
         self.setStyleSheet("""
             QPushButton {
@@ -49,21 +49,22 @@ class PlayStopButton(MHoverAbleButton):
         self.clicked.connect(self.toggle_music)
 
     def update_button_icon(self):
-        state = State.get().access()
-        if state.is_playing:
+        track = State.get().access().track
+        if track.is_playing:
             self.setIcon(QIcon("resources/images/icon_pause.png"))
         else:
             self.setIcon(QIcon("resources/images/icon_play.png"))
 
     def toggle_music(self):
-        state = State.get().access()
-        state.is_playing = not state.is_playing
+        track = State.get().access().track
+        track.is_playing = not track.is_playing
         self.update_button_icon()
 
 
 class MenuBar(QMenuBar):
     def on_exit(self):
         self.parent_window.close()
+
     def __init__(self, parent):
         super().__init__(parent)
         self.parent_window = parent
@@ -98,6 +99,28 @@ class MenuBar(QMenuBar):
         self.addMenu(self.menuOptions)
 
 
+class ProgressBar(QVBoxLayout):
+    def __init__(self, parent):
+        super().__init__(parent)
+        state = State.get().access()
+        track = state.track
+        self.name_label = QtWidgets.QLabel()
+        self.name_label.setText(track.track_name)
+        self.bar_layout = QHBoxLayout()
+        self.current_time_label = QtWidgets.QLabel()
+        self.current_time_label.setText(f"{track.current_second}")
+
+        self.slider = QtWidgets.QSlider()
+
+        self.duration_label = QtWidgets.QLabel()
+        self.duration_label.setText(f"{track.duration_seconds}")
+
+        self.bar_layout.addWidget(self.current_time_label)
+        self.bar_layout.addWidget(self.slider)
+        self.bar_layout.addWidget(self.duration_label)
+        self.addWidget(self.name_label)
+        self.addLayout(self.bar_layout)
+
 
 class MainWindow(QMainWindow):
 
@@ -115,15 +138,21 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setupUi()
-        layout = QHBoxLayout()
+
+        self.layout = QVBoxLayout()
+        self.tools = QHBoxLayout()
+        self.bar = ProgressBar(self)
+        self.layout.addLayout(self.bar)
+        self.layout.addLayout(self.tools)
         self.play_stop_button = PlayStopButton(self)
         self.looping_checkbox = LoopCheckBox(self)
-        layout.addWidget(self.play_stop_button)
-        layout.addWidget(self.looping_checkbox)
-        self.centralwidget.setLayout(layout)
+        self.tools.addWidget(self.play_stop_button)
+        self.tools.addWidget(self.looping_checkbox)
+        self.centralwidget.setLayout(self.layout)
 
 
-app = QApplication(sys.argv)
-window = MainWindow()
-window.show()
-sys.exit(app.exec_())
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())

@@ -9,8 +9,6 @@ class ProgramStateManager:
     def load_state(self):
         state = ProgramState()
         settings_map = self.read_state_file()
-        if 'is_playing' in settings_map:
-            state.is_playing = self.bool_attribute(settings_map, 'is_playing')
         if 'is_looping' in settings_map:
             state.is_looping = self.bool_attribute(settings_map, 'is_looping')
         if 'play_speed' in settings_map:
