@@ -1,9 +1,9 @@
 import sys
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QMainWindow, QMenuBar, QFileDialog
 from PyQt5.QtGui import QIcon
-from PyQt5.QtMultimedia import QMediaPlayer
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from state_manager import State, PlayerService
 
@@ -106,7 +106,8 @@ class MenuBar(QMenuBar):
         self.addMenu(self.menuOptions)
 
     def on_open(self):
-        filename, _ = QFileDialog.getOpenFileName(self, "Open")
+        # filename, _ = QFileDialog.getOpenFileName(self, "Open")
+        filename = "" # .ogg not supported (!); need a codec
         load_successful = PlayerService.state_from_file(filename)
         self.parent_window.on_file_loaded(load_successful)
 
@@ -118,6 +119,7 @@ class Player(QVBoxLayout):
         self.videoWidget = QVideoWidget()
         self.addWidget(self.videoWidget)
         self.mediaPlayer.setVideoOutput(self.videoWidget)
+
     # Events ??
     def toggle_playing(self, to_play):
         if to_play:
@@ -182,9 +184,21 @@ class MainWindow(QMainWindow):
         self.tools.addWidget(self.looping_checkbox)
         self.centralwidget.setLayout(self.layout)
 
+        self.player.mediaPlayer.mediaStatusChanged.connect(self.on_player_media_change)
+
+
     def on_file_loaded(self, load_successful):
         if not load_successful:
             return
+        file_to_play = State.get().state.track.track_file
+        url = QUrl.fromLocalFile(file_to_play)
+        self.player.mediaPlayer.setMedia(QMediaContent(url))
+
+    def on_player_media_change(self, status):
+        print(self.player.mediaPlayer.mediaStatus())
+        if status == QMediaPlayer.LoadedMedia:
+            print(self.player.mediaPlayer.duration())
+            self.player.mediaPlayer.play()
 
 
 if __name__ == '__main__':
