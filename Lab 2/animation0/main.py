@@ -1,6 +1,6 @@
 import mido
 import tkinter as tk
-from piano import PianoCreator88
+from piano import PianoCreator88, PianoCreationParams
 
 class MidiPlayer:
     def load_midi(self, file_path):
@@ -18,21 +18,18 @@ class MidiPlayer:
         print(f"Total notes in the MIDI file: {total_notes}")
         return midi
 
-    def create_canvas(self):
-        self.root.geometry("1280x720")
-        self.root.title("Midi Animation")
-
-    def create_piano_keys(self):
-        pass
-
 
     def __init__(self):
         self.root = tk.Tk()
         self.midi_file = ""
+        self.piano = None
     def begin(self):
         self.midi_file = self.load_midi("resource/audio/overworld.mid")
+        self.root.geometry("1540x720")
+        self.root.title("Midi Animation")
         creator = PianoCreator88()
-        piano = creator.create_piano(self.root)
+        initial_piano = PianoCreationParams(self.root, 1280, 200)
+        self.piano = creator.create_piano(initial_piano)
         self.root.mainloop()
 
 
