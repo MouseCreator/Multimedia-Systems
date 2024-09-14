@@ -26,35 +26,51 @@ class MidiPlayer:
         self.root = tk.Tk()
         self.midi_file = ""
         self.piano = None
+        self.menu_bar = None
+        self.side_pane = None
+        self.piano_pane = None
+        self.main_bar = None
+        self.midi_notes_pane = None
+        self.size_tracker = None
 
     def on_piano_resize(self, width, height):
         self.piano.resize(width, height)
-
-    def begin(self):
+    def setup_layout(self):
         self.midi_file = self.load_midi("resource/audio/overworld.mid")
-        self.root.geometry("1280x720")
+        self.root.geometry(f"{DEFINES.DEFAULT_WINDOW_WIDTH}x{DEFINES.DEFAULT_WINDOW_HEIGHT}")
         self.root.title("Midi Animation")
+        self.root.minsize(DEFINES.MIN_WINDOW_WIDTH, DEFINES.MIN_WINDOW_HEIGHT)
         creator = PianoCreator88()
-        self.menu_bar = tk.Frame(self.root,bg='blue')
-        self.menu_bar.place(relwidth=1, height=20)
-        self.main_bar = tk.Frame(self.root,bg='yellow')
-        self.main_bar.place(relwidth=1, y=20, relheight=1)
+        self.menu_bar = tk.Frame(self.root, bg='blue')
+        self.menu_bar.place(relwidth=1, height=DEFINES.MENU_HEIGHT_PX)
+        self.main_bar = tk.Frame(self.root, bg='yellow')
+        self.main_bar.place(relwidth=1, y=DEFINES.MENU_HEIGHT_PX, relheight=1)
         self.piano_pane = tk.Frame(self.main_bar, bg='red')
-        self.sidepane = tk.Frame(self.main_bar, bg='green')
-        self.sidepane.place(relwidth=0.2, relheight=1)
-        self.piano_pane.place(relx=0.2, rely=0.7, relwidth=0.8, relheight=0.3)
-        initial_piano = PianoCreationParams(self.piano_pane, 1280, 720)
+        self.side_pane = tk.Frame(self.main_bar, bg='green')
+        self.side_pane.place(relwidth=DEFINES.REL_SIDEBAR_WIDTH, relheight=1)
+        self.piano_pane.place(relx=DEFINES.REL_SIDEBAR_WIDTH,
+                              rely=DEFINES.REL_MIDI_PLAYER_HEIGHT,
+                              relwidth=DEFINES.REL_PIANO_WIDTH,
+                              relheight=DEFINES.REL_PIANO_HEIGHT)
+        initial_piano = PianoCreationParams(self.piano_pane, DEFINES.DEFAULT_PIANO_WIDTH, DEFINES.DEFAULT_PIANO_HEIGHT)
         self.piano = creator.create_piano(initial_piano)
-        self.piano.canvas.grid(row=1,column=1, sticky='S')
 
         self.midi_notes_pane = tk.Frame(self.main_bar, bg='gray')
-        self.midi_notes_pane.place(relx=0.2, relheight=0.7, relwidth=0.8)
+        self.midi_notes_pane.place(relx=DEFINES.REL_SIDEBAR_WIDTH,
+                                   relheight=DEFINES.REL_MIDI_PLAYER_HEIGHT,
+                                   relwidth=DEFINES.REL_PIANO_WIDTH)
 
-        self.tracker = SizeTracker(self.piano_pane)
-        self.tracker.register(self.on_piano_resize)
-        self.tracker.bind_config()
-        self.tracker.resize_to(1024, 204)
+        self.size_tracker = SizeTracker(self.piano_pane)
+        self.size_tracker.register(self.on_piano_resize)
+        self.size_tracker.bind_config()
+        self.size_tracker.resize_to(DEFINES.DEFAULT_PIANO_WIDTH, DEFINES.DEFAULT_PIANO_HEIGHT)
+
+    def main_loop(self):
         self.root.mainloop()
+
+    def begin(self):
+        self.setup_layout()
+        self.main_loop()
 
 
 
