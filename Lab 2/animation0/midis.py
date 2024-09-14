@@ -15,9 +15,12 @@ class MidiTrack:
         self.number = number
         self.origin = origin
 class MidiChannel:
-    def __init__(self, number, origin):
+    def __init__(self, number):
         self.number = number
-        self.origin = origin
+    def __hash__(self):
+        return self.number
+    def __eq__(self, other):
+        return other.number == self.number
 
 class MidiFile:
     def __init__(self, events: List[MidiEvent], tracks: List[MidiTrack], channels: List[MidiChannel]):
@@ -27,8 +30,8 @@ class MidiFile:
 
 
 class MidiMapper:
-
-    def map_to_midi_file(self, file: str) -> MidiFile:
+    @staticmethod
+    def map_to_midi_file(file: str) -> MidiFile:
 
         midi = mido.MidiFile(file)
 
@@ -46,7 +49,7 @@ class MidiMapper:
                 current_time += msg.time
                 if msg.type == 'note_on' and msg.velocity > 0:
                     note_on_events[(msg.note, msg.channel)] = (current_time, msg.velocity)
-                    channels.add(MidiChannel(number=msg.channel, origin=track.name))
+                    channels.add(MidiChannel(number=msg.channel))
                 elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
                     if (msg.note, msg.channel) in note_on_events:
                         begin_when, volume = note_on_events.pop((msg.note, msg.channel))
