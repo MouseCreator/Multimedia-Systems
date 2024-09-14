@@ -2,7 +2,6 @@
 from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List
-from geometry import Position
 
 class GraphicKey:
 
@@ -68,8 +67,8 @@ class Piano:
 
 
     def resize(self, width, height):
+        self.canvas.place(width=width,height=height)
         KeySizeCalculator.calculate_size(self, width, height)
-
     def clear_frame(self):
         for widget in self.canvas.winfo_children():
             widget.destroy()
@@ -109,8 +108,7 @@ class KeyPrototype:
 
 class KeySizeCalculator:
     @staticmethod
-    def calculate_size(piano: Piano, width, height):
-        piano.clear_frame()
+    def calculate_size(piano: Piano, width: int, height: int):
         white_only = piano.pparams.keys_white
         white_width = width / white_only
         white_height = height
@@ -120,11 +118,11 @@ class KeySizeCalculator:
             color = key.color
             if color == "white":
                 key.visual.resize(white_width, white_height)
-                new_x = key.normalized_position * white_width
+                new_x = key.normalized_position * white_width / 2
                 key.visual.move(new_x, 0)
             else:
                 key.visual.resize(black_width, black_height)
-                new_x = key.normalized_position * white_width
+                new_x = key.normalized_position * white_width / 2
                 key.visual.move(new_x, 0)
 
 class PianoCreationParams:
@@ -139,7 +137,7 @@ class PianoCreator(ABC):
 
 class PianoCreator88(PianoCreator):
 
-    def create_piano(self, piano_params: PianoCreationParams):
+    def create_piano(self, piano_params: PianoCreationParams) -> Piano:
         keys = []
         pparams = PianoParams(total=88, white=52, black=36)
         gparams = PianoGraphicConfig()
@@ -168,8 +166,6 @@ class PianoCreator88(PianoCreator):
                 black_keys.append(actual_key)
 
         piano = Piano(canvas, keys, pparams, gparams)
-        canvas.pack(side=tk.BOTTOM, padx=10)
-        piano.resize(piano_params.width, piano_params.height)
         for black_key in black_keys:
             black_key.on_raise(canvas)
         return piano
