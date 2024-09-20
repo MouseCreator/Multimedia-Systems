@@ -66,7 +66,7 @@ class MidiNotesState:
         created = []
         while len(self.create_queue) > 0:
             event = self.create_queue[0]
-            if updated_into_notes - self.lookahead_millis >= event.begin_when:
+            if updated_into_notes + self.lookahead_millis >= event.begin_when:
                 created.append(event)
                 self.create_queue.pop(0)
             else:
@@ -143,23 +143,26 @@ class MidiNotesEventConsumer:
 
     def process_events(self, past_millis, display_events: List[DisplayEvent]):
         for display in self.note_displays.values():
-            display.move_to(display.pos_x, display.pos_y + past_millis * self.pixels_per_millisecond)
+            gr = display.graphic
+            gr.move_to(gr.pos_x, gr.pos_y + past_millis * self.pixels_per_millisecond)
         for event in display_events:
             if event.e_type == "register":
+                print("register")
                 #append display event
                 duration = event.note.end_when - event.note.begin_when
                 graphic = NoteGraphic(self.context, 1, duration, color='red')
                 height = self.pixels_per_millisecond * duration
                 graphic.move_to(20, height)
                 graphic.resize(20, height)
-                self.note_displays[event.note.id] = DisplayableNote(event.note, graphic)
+                self.note_displays[event.note.identity] = DisplayableNote(event.note, graphic)
             elif event.e_type == "press":
+                print("pressing")
                 # press piano key
-                self.piano.press(event.note.to_play)
+                # self.piano.press(event.note.to_play)
             elif event.e_type == "destroy":
                 # out of bounds, no longer track
-                self.piano.unpress(event.note.to_play)
-                graphic = self.note_displays.pop(event.note.id, __default=None)
+                # self.piano.release(event.note.to_play)
+                graphic = self.note_displays.pop(event.note.identity, __default=None)
                 if graphic:
                     graphic.graphic.remove()
             elif event.e_type == "align":
@@ -211,8 +214,6 @@ class MidiNotesDisplay:
             if self.mini_notes_state.finished():
                 print("FINISH")
                 self._finish()
-        else:
-            print("NOT PLAYING")
 
     def _finish(self):
         self.is_finished.set()
