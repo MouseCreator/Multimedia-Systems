@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List
 
+from midis import SoundEvent
+
+
 class GraphicKey:
 
     def __init__(self, parent: tk.Canvas, color: str):
@@ -12,10 +15,21 @@ class GraphicKey:
         self.y = 0
         self.width = 0
         self.height = 0
-    def press(self, apply_color=None):
+        self.color_stack = [color]
+
+    def press(self, apply_color):
+        self.color_stack.append(apply_color)
+        self.parent.itemconfig(self.shape, fill=apply_color)
         print("Key is pressed!")
 
-    def release(self):
+    def release(self, certain_color=None):
+        length = len(self.color_stack)
+        if certain_color is None:
+            self.color_stack.pop(length-1)
+        else:
+            self.color_stack.remove(certain_color)
+        new_color = self.color_stack[length-2]
+        self.parent.itemconfig(self.shape, fill=new_color)
         print("Key is released!")
 
     def resize(self, width, height):
@@ -44,6 +58,12 @@ class PianoKey:
     def on_raise(self, canvas: tk.Canvas):
         canvas.tag_raise(self.visual.shape)
 
+    def on_press(self, note_to_play):
+        self.visual.press("red")
+
+    def on_release(self, note_to_release):
+        self.visual.release("red")
+
 
 class PianoParams:
     def __init__(self, total, white, black):
@@ -53,17 +73,41 @@ class PianoParams:
 
 class PianoGraphicConfig:
     def __init__(self):
-        self.white_overlay = None
-        self.black_overlay = None
         self.black_normalized_x = 0.5
         self.black_normalized_y = 0.7
 
+class DynamicGraphicalParams:
+    def __init__(self):
+        self.white_width = 0
+        self.black_width = 0
+        self.white_height = 0
+        self.black_height = 0
+
+class NotesMap:
+    def __init__(self):
+        self.note_map = {}
+
+    def when_pressed(self, note_to_play):
+        return self.note_map[note_to_play]
+
+    def put(self, note_id, key_id):
+        self.note_map[note_id] = key_id
+
+
 class Piano:
-    def __init__(self, canvas: tk.Canvas, keys: List[PianoKey], pparams: PianoParams, gparams: PianoGraphicConfig):
+    dynamic_gfx : DynamicGraphicalParams
+    def __init__(self,
+                 canvas: tk.Canvas,
+                 keys: List[PianoKey],
+                 pparams: PianoParams,
+                 gparams: PianoGraphicConfig,
+                 note_map : NotesMap):
         self.keys = keys
         self.pparams = pparams
         self.gparams = gparams
         self.canvas = canvas
+        self.note_map = note_map
+        self.dynamic_gfx = DynamicGraphicalParams()
 
 
     def resize(self, width, height):
@@ -72,6 +116,19 @@ class Piano:
     def clear_frame(self):
         for widget in self.canvas.winfo_children():
             widget.destroy()
+
+    def press(self, note_to_play : SoundEvent):
+        key_index = self.note_map.when_pressed(note_to_play.note)
+        key = self.keys[key_index]
+        key.on_press(note_to_play)
+    def release(self, note_to_release : SoundEvent):
+        key_index = self.note_map.when_pressed(note_to_release.note)
+        key = self.keys[key_index]
+        key.on_release(note_to_release)
+    def key_id_of(self, target_note : SoundEvent) -> PianoKey:
+        key_index = self.note_map.when_pressed(target_note.note)
+        return self.keys[key_index]
+
 
 
 class KeyboardParams:
@@ -114,6 +171,10 @@ class KeySizeCalculator:
         white_height = height
         black_width = white_width * piano.gparams.black_normalized_x
         black_height = white_height * piano.gparams.black_normalized_y
+        piano.dynamic_gfx.white_width = white_width
+        piano.dynamic_gfx.black_width = black_width
+        piano.dynamic_gfx.white_height = white_height
+        piano.dynamic_gfx.black_height = black_height
         for key in piano.keys:
             color = key.color
             if color == "white":
@@ -136,6 +197,14 @@ class PianoCreator(ABC):
         pass
 
 class PianoCreator88(PianoCreator):
+    @staticmethod
+    def create_note_map() -> NotesMap:
+        notes_map = NotesMap()
+
+        for i in range(0, 128):
+            notes_map.put(i, i % 88)
+
+        return notes_map
 
     def create_piano(self, piano_params: PianoCreationParams) -> Piano:
         keys = []
@@ -164,8 +233,8 @@ class PianoCreator88(PianoCreator):
                 position_pointer += 1
             else:
                 black_keys.append(actual_key)
-
-        piano = Piano(canvas, keys, pparams, gparams)
+        notes_map = PianoCreator88.create_note_map()
+        piano = Piano(canvas, keys, pparams, gparams, notes_map)
         for black_key in black_keys:
             black_key.on_raise(canvas)
         return piano

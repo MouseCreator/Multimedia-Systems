@@ -3,6 +3,10 @@ import mido
 from abc import ABC, abstractmethod
 
 class MidiEvent(ABC):
+    identity: int
+    begin_when: int
+    end_when: int
+
     @abstractmethod
     def event_type(self):
         pass

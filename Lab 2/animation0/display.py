@@ -1,20 +1,44 @@
 import tkinter as tk
 
-from midis import MidiMapper, MidiFile, MidiEvent
+from midis import MidiFile, MidiEvent
 import threading
-from typing import List
+from typing import List, Dict
 
 from piano import Piano
 
+class NoteGraphic:
+    def __init__(self, root : tk.Canvas, duration_millis, color = 'white'):
+        self.root = root
+        self.pos_x = 0
+        self.pos_y = 0
+        self.width = 0
+        self.height = 0
+        self.color = color
+        self.duration_millis = duration_millis
+        self.graphic = self.root.create_rectangle(0, 0, 0, 0, fill=color)
+    def move_by(self, x, y):
+        self.pos_x += x
+        self.pos_y += y
+        self.root.move(self.graphic, x, y)
+    def resize(self, width, height):
+        self.width = width
+        self.height = height
+        self.root.coords(self.graphic, self.pos_x, self.pos_y, self.pos_x+self.width, self.pos_y+self.height)
+    def set_channel_color(self, color):
+        self.color = color
+        self.root.itemconfig(self.graphic, fill=color)
+    def remove(self):
+        self.root.delete(self.graphic)
 
-def test_print():
-    midi_file = MidiMapper.map_to_midi_file("resource/audio/overworld.mid")
-    print(midi_file)
+class DisplayableNote:
+    def __init__(self, note: MidiEvent, graphic: NoteGraphic):
+        self.note = note
+        self.graphic = graphic
 
 
 class DisplayEvent:
-    def __init__(self, note, e_type):
-        self.note = note
+    def __init__(self, midi_event: MidiEvent, e_type: str):
+        self.midi_event = midi_event
         self.e_type = e_type
 
 class MidiNotesState:
@@ -102,67 +126,66 @@ class MidiNotesState:
         return self.time > self.full_length
 
 
-class NoteGraphic:
-    def __init__(self, root : tk.Canvas, relative_x, duration_millis, color = 'white'):
-        self.root = root
-        self.pos_x = 0
-        self.pos_y = 0
-        self.width = 0
-        self.height = 0
-        self.color = color
-        self.relative_x = relative_x
-        self.duration_millis = duration_millis
-        self.graphic = self.root.create_rectangle(0, 0, 0, 0, fill=color)
-    def move_to(self, x, y):
-        self.pos_x = x
-        self.pos_y = y
-        self.root.move(self.graphic, x, y)
-    def resize(self, width, height):
-        self.width = width
-        self.height = height
-        self.root.coords(self.graphic, self.pos_x, self.pos_y, self.pos_x+self.width, self.pos_y+self.height)
-    def set_channel_color(self, color):
-        self.color = color
-        self.root.itemconfig(self.graphic, fill=color)
-    def remove(self):
-        self.root.delete(self.graphic)
-
-class DisplayableNote:
-    def __init__(self, note, graphic: NoteGraphic):
-        self.note = note
-        self.graphic = graphic
-
-
-
 class MidiNotesEventConsumer:
-    def __init__(self, context: tk.Canvas, piano):
+    note_displays: Dict[int, DisplayableNote]
+    def __init__(self, context: tk.Canvas, piano: Piano, width, height):
         self.context = context
         self.piano = piano
         self.note_displays = {} # int id : note_display
-        self.pixels_per_millisecond = 0.15
+        self.width = width
+        self.height = height
+        self.scroll_speed = 5
+        self.time_on_screen = self.height / self.scroll_speed
+        self.pixels_per_millisecond = self.height / self.time_on_screen
+
+    def update_geometry(self, width, height):
+        self.width = width
+        self.height = height
+        self.pixels_per_millisecond = self.height / self.time_on_screen
+
+    def set_speed(self, speed):
+        self.scroll_speed = speed
+        self.time_on_screen = self.height / self.scroll_speed
+
+    def align_key(self, displayable: DisplayableNote, duration: int):
+        white_only = self.piano.pparams.keys_white
+        white_width = self.piano.dynamic_gfx.white_width
+        black_width = self.piano.dynamic_gfx.black_width
+        key = self.piano.key_id_of(displayable.note)
+        color = key.color
+
+        height = self.pixels_per_millisecond * duration
+
+        if color == "white":
+            new_x = key.normalized_position * white_width / 2
+            displayable.graphic.move_by(new_x, -height)
+            displayable.graphic.resize(white_width, height)
+        else:
+            new_x = key.normalized_position * white_width / 2
+            displayable.graphic.move_by(new_x, -height)
+            displayable.graphic.resize(black_width, height)
 
     def process_events(self, past_millis, display_events: List[DisplayEvent]):
         for display in self.note_displays.values():
             gr = display.graphic
-            gr.move_to(gr.pos_x, gr.pos_y + past_millis * self.pixels_per_millisecond)
+            gr.move_by(0, past_millis * self.pixels_per_millisecond)
         for event in display_events:
             if event.e_type == "register":
-                print("register")
                 #append display event
-                duration = event.note.end_when - event.note.begin_when
-                graphic = NoteGraphic(self.context, 1, duration, color='red')
-                height = self.pixels_per_millisecond * duration
-                graphic.move_to(20, height)
-                graphic.resize(20, height)
-                self.note_displays[event.note.identity] = DisplayableNote(event.note, graphic)
+                print("register")
+                if event.midi_event.event_type()=="sound":
+                    self.create_graphics_for(event)
             elif event.e_type == "press":
                 print("pressing")
                 # press piano key
-                # self.piano.press(event.note.to_play)
+                if event.midi_event.event_type()=="sound":
+                    self.piano.press(event.midi_event)
+                elif event.midi_event.event_type()=="program":
+                    print("Change program info")
             elif event.e_type == "destroy":
                 # out of bounds, no longer track
-                # self.piano.release(event.note.to_play)
-                graphic = self.note_displays.pop(event.note.identity, __default=None)
+                self.piano.release(event.midi_event)
+                graphic = self.note_displays.pop(event.midi_event.identity, __default=None)
                 if graphic:
                     graphic.graphic.remove()
             elif event.e_type == "align":
@@ -170,6 +193,13 @@ class MidiNotesEventConsumer:
                 raise Exception("Unexpected align event while playing midi file")
             else:
                 raise Exception("Unknown event type")
+
+    def create_graphics_for(self, event):
+        duration = event.midi_event.end_when - event.midi_event.begin_when
+        graphic = NoteGraphic(self.context, duration, color='red')
+        displayable = DisplayableNote(event.midi_event, graphic)
+        self.align_key(displayable, duration)
+        self.note_displays[event.midi_event.identity] = displayable
 
     def recreate(self, new_time, display_events: List[DisplayEvent]):
         pass
@@ -180,7 +210,7 @@ class MidiNotesDisplay:
         self.root = root
         self.canvas = tk.Canvas(root, bg='gray')
         self.mini_notes_state = None
-        self.event_consumer = MidiNotesEventConsumer(self.canvas, piano)
+        self.event_consumer = MidiNotesEventConsumer(self.canvas, piano, root.winfo_width(), root.winfo_height())
         self.is_loaded = threading.Event()
         self.is_loaded.clear()
         self.is_playing = threading.Event()
