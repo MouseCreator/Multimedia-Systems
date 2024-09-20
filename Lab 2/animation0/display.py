@@ -62,6 +62,7 @@ class MidiNotesState:
     def move_time_forward(self, by_millis: int) -> List[DisplayEvent]:
         updated_time = self.time + by_millis
         updated_into_notes = self.time_into_notes + by_millis
+        print(self.time_into_notes)
         created = []
         while len(self.create_queue) > 0:
             event = self.create_queue[0]
@@ -98,7 +99,7 @@ class MidiNotesState:
         return display_events
 
     def finished(self):
-        return self.time > self.duration
+        return self.time > self.full_length
 
 
 class NoteGraphic:
@@ -142,14 +143,14 @@ class MidiNotesEventConsumer:
 
     def process_events(self, past_millis, display_events: List[DisplayEvent]):
         for display in self.note_displays.values():
-            self.context.move(display, display.x, display.y + past_millis * self.pixels_per_millisecond)
+            display.move_to(display.pos_x, display.pos_y + past_millis * self.pixels_per_millisecond)
         for event in display_events:
             if event.e_type == "register":
                 #append display event
                 duration = event.note.end_when - event.note.begin_when
                 graphic = NoteGraphic(self.context, 1, duration, color='red')
                 height = self.pixels_per_millisecond * duration
-                graphic.move_to(20, -height)
+                graphic.move_to(20, height)
                 graphic.resize(20, height)
                 self.note_displays[event.note.id] = DisplayableNote(event.note, graphic)
             elif event.e_type == "press":
@@ -174,7 +175,7 @@ class MidiNotesDisplay:
 
     def __init__(self, root : tk.Frame, piano : Piano):
         self.root = root
-        self.canvas = tk.Canvas()
+        self.canvas = tk.Canvas(root, bg='gray')
         self.mini_notes_state = None
         self.event_consumer = MidiNotesEventConsumer(self.canvas, piano)
         self.is_loaded = threading.Event()
@@ -183,6 +184,8 @@ class MidiNotesDisplay:
         self.is_playing.clear()
         self.is_finished = threading.Event()
         self.is_finished.clear()
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+
 
     def load_notes(self, midi_file: MidiFile):
         duration = midi_file.duration
@@ -198,13 +201,18 @@ class MidiNotesDisplay:
         self.mini_notes_state = None
 
     def update(self, past_millis):
+
         if not self.is_loaded.is_set():
+            print("NOT LOADED")
             return
         if self.is_playing.is_set():
             display_events = self.mini_notes_state.move_time_forward(past_millis)
             self.event_consumer.process_events(past_millis, display_events)
             if self.mini_notes_state.finished():
+                print("FINISH")
                 self._finish()
+        else:
+            print("NOT PLAYING")
 
     def _finish(self):
         self.is_finished.set()
