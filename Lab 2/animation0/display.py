@@ -173,23 +173,6 @@ class MidiNotesState:
         return self.current_tick > self.full_length
 
 
-# def align_key(self, displayable: DisplayableNote, duration: int):
-#     white_width = self.piano.dynamic_gfx.white_width
-#     black_width = self.piano.dynamic_gfx.black_width
-#     key = self.piano.key_id_of(displayable.note)
-#     color = key.color
-#
-#     height = self.pixels_per_millisecond * duration
-#
-#     if color == "white":
-#         new_x = key.normalized_position * white_width / 2
-#         displayable.graphic.move_by(new_x, -height)
-#         displayable.graphic.resize(white_width, height)
-#     else:
-#         new_x = key.normalized_position * white_width / 2
-#         displayable.graphic.move_by(new_x, -height)
-#         displayable.graphic.resize(black_width, height)
-
 
 class SlidingNote:
     def __init__(self,
@@ -204,11 +187,11 @@ class SlidingNote:
         self.press_tick = press_tick
         self.created_tick = created_tick
         self.canvas = canvas
-        self.note_id = key_id
+        self.key_id = key_id
         self.channel_id = channel_id
         self.end_tick = end_tick
-        self.color = 'white'
-        self.shape = self.canvas.create_rectangle(0, 0, 0, 0, fill=self.color)
+        self.key_color = 'white'
+        self.shape = self.canvas.create_rectangle(0, 0, 0, 0, fill=self.key_color)
         self.pos_x = 0
         self.pos_y = 0
         self.width = 0
@@ -240,8 +223,9 @@ class SlidingNote:
 
 class SlidingNotes:
     active_notes: List[SlidingNote]
-    def __init__(self, dynamics: DynamicMidiData):
+    def __init__(self, dynamics: DynamicMidiData, piano: Piano):
         self.dynamics = dynamics
+        self.piano = piano
         self.active_notes = []
 
     def include(self, sliding_note : SlidingNote):
@@ -252,25 +236,47 @@ class SlidingNotes:
 
     def update_every_note(self, ticks_passed):
         current = self.dynamics.current_tick
-        next_tick = current + ticks_passed
-        camera_moved_by =  ticks_passed * self.dynamics.pixels_per_tick
         for active_note in self.active_notes:
-            ending = active_note.end_tick
-            move_value = 0
-            stretch_value = 0
-            if ending < current:
-                stretch_value = camera_moved_by
-            elif current < ending < next_tick:
-                ticks_build = ending - current
-                ticks_move = next_tick - ending
-                move_value = ticks_move * self.dynamics.pixels_per_tick
-                stretch_value = ticks_build * self.dynamics.pixels_per_tick
-            elif next_tick < ending:
-                move_value = camera_moved_by
-            if stretch_value > 0:
-                active_note.stretch_by(0, stretch_value)
-            if move_value:
-                active_note.move_by(0, move_value)
+            self._move_sliding_note(active_note, current, ticks_passed)
+
+    def _move_sliding_note(self, active_note: SlidingNote, current : int, ticks_passed : int):
+        ending = active_note.end_tick
+        move_value = 0
+        next_tick = current + ticks_passed
+        stretch_value = 0
+        camera_moved_by = ticks_passed * self.dynamics.pixels_per_tick
+        if ending < current:
+            stretch_value = camera_moved_by
+        elif current < ending < next_tick:
+            ticks_build = ending - current
+            ticks_move = next_tick - ending
+            move_value = ticks_move * self.dynamics.pixels_per_tick
+            stretch_value = ticks_build * self.dynamics.pixels_per_tick
+        elif next_tick < ending:
+            move_value = camera_moved_by
+        if stretch_value > 0:
+            active_note.stretch_by(0, stretch_value)
+        if move_value > 0:
+            active_note.move_by(0, move_value)
+
+    def adjust_position(self, sliding_note: SlidingNote):
+        current_tick = self.dynamics.current_tick
+        note_created = sliding_note.created_tick
+        note_alive = current_tick - note_created
+
+        white_width = self.piano.dynamic_gfx.white_width
+        black_width = self.piano.dynamic_gfx.black_width
+        color = sliding_note.key_color
+        key = self.piano.keys[sliding_note.key_id]
+        if color == "white":
+            new_x = key.normalized_position * white_width / 2
+            sliding_note.move_by(new_x, 0)
+        else:
+            new_x = key.normalized_position * white_width / 2
+            sliding_note.move_by(new_x, 0)
+
+        self._move_sliding_note(sliding_note, current_tick, note_alive)
+
 
 
 class NoteAnimationHandler:
@@ -278,7 +284,7 @@ class NoteAnimationHandler:
     def __init__(self, canvas : tk.Canvas, piano: Piano, dynamics:DynamicMidiData):
         self.piano = piano
         self.dynamics = dynamics
-        self.sliding_notes = SlidingNotes(dynamics)
+        self.sliding_notes = SlidingNotes(dynamics, piano)
         self.notes_map = {}
         self.canvas = canvas
     def on_register(self, event : SoundEvent):
@@ -288,13 +294,14 @@ class NoteAnimationHandler:
             created_by_id = created_by,
             key_id = key_id.index,
             channel_id=event.channel,
-            created_tick=self.dynamics.current_tick,
+            created_tick=event.begin_when - self.dynamics.ticks_lookahead,
             press_tick=event.begin_when,
             end_tick=event.end_when,
             canvas=self.canvas
         )
+
+        self.sliding_notes.adjust_position(sliding_note)
         sliding_note.resize(20, 20)
-        sliding_note.move_by(20, 20)
         self.notes_map[created_by] = sliding_note
         self.sliding_notes.include(sliding_note)
         print(f"Register {event.identity}")
@@ -312,7 +319,7 @@ class NoteAnimationHandler:
 
 
 class MidiNotesDisplay:
-
+    # TODO: FOR AUDIO OUTPUT ADD ASSOCIATED EVENTS (origins)
     def __init__(self, root : tk.Frame, piano : Piano, dynamics: DynamicMidiData):
         self.root = root
         self.dynamics = dynamics

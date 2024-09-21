@@ -121,6 +121,7 @@ class Piano:
         key_index = self.note_map.when_pressed(note_to_play.note)
         key = self.keys[key_index]
         key.on_press(note_to_play)
+
     def release(self, note_to_release : SoundEvent):
         key_index = self.note_map.when_pressed(note_to_release.note)
         key = self.keys[key_index]
