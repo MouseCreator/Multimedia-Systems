@@ -2,6 +2,7 @@ import mido
 import tkinter as tk
 
 from display import MidiNotesDisplay
+from dynamic import DynamicMidiData
 from engine import Engine
 from midis import MidiMapper
 from piano import PianoCreator88, PianoCreationParams, Piano
@@ -18,6 +19,7 @@ class MidiPlayer:
 
     def __init__(self):
         self.root = tk.Tk()
+        self.dynamics = DynamicMidiData()
         self.midi_file = None
         self.piano = None
         self.menu_bar = None
@@ -50,15 +52,16 @@ class MidiPlayer:
                               relheight=DEFINES.REL_PIANO_HEIGHT)
         initial_piano = PianoCreationParams(self.piano_pane, DEFINES.DEFAULT_PIANO_WIDTH, DEFINES.DEFAULT_PIANO_HEIGHT)
         self.piano = creator.create_piano(initial_piano)
-
         self.engine = Engine(self.root)
         self.midi_notes_pane = tk.Frame(self.main_bar, bg='gray')
         self.midi_notes_pane.place(relx=DEFINES.REL_SIDEBAR_WIDTH,
                                    relheight=DEFINES.REL_MIDI_PLAYER_HEIGHT,
                                    relwidth=DEFINES.REL_PIANO_WIDTH)
 
-        self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano)
-        self.notes_display.load_notes(MidiMapper.map_to_midi_file("resource/audio/overworld.mid"))
+        self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano, self.dynamics)
+        mapped_file = MidiMapper.map_to_midi_file("resource/audio/overworld.mid")
+        self.apply_metadata(mapped_file)
+        self.notes_display.load_notes(mapped_file)
         self.notes_display.play()
         self.engine.register(self.notes_display.update)
         self.size_tracker = SizeTracker(self.piano_pane)
@@ -88,6 +91,10 @@ class MidiPlayer:
 
         print(f"Total notes in the MIDI file: {total_notes}")
         return midi
+
+    def apply_metadata(self, mapped_file):
+        self.dynamics.ticks_per_beat = mapped_file.metadata.ticks_per_beat
+        self.dynamics.duration_ticks = mapped_file.metadata.duration_ticks
 
 
 if __name__ == '__main__':

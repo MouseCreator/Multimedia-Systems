@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 class MidiEvent(ABC):
     identity: int
     begin_when: int
-    end_when: int
 
     @abstractmethod
     def event_type(self):
@@ -23,14 +22,21 @@ class SoundEvent(MidiEvent):
     def event_type(self):
         return "sound"
 
+class TempoEvent(MidiEvent):
+    def event_type(self):
+        return "tempo"
+
+    def __init__(self, identity: int, begin_when: int, tempo: int):
+        self.identity = identity
+        self.tempo = tempo
+        self.begin_when = begin_when
 
 class ProgramChangeEvent(MidiEvent):
-    def __init__(self, identity:int, track:int, begin_when: int, origin):
+    def __init__(self, identity:int, begin_when: int, channel: int, program: int):
         self.identity = identity
-        self.track = track
         self.begin_when = begin_when
-        self.end_when = begin_when
-        self.origin = origin
+        self.program = program
+        self.channel = channel
     def event_type(self):
         return "program"
 
@@ -46,12 +52,23 @@ class MidiChannel:
     def __eq__(self, other):
         return other.number == self.number
 
+class MidiMetaData:
+    def __init__(self, tempo: int, ticks_per_beat: int, duration_ticks: int):
+        self.tempo = tempo
+        self.ticks_per_beat = ticks_per_beat
+        self.duration_ticks = duration_ticks
+
 class MidiFile:
-    def __init__(self, events: List[MidiEvent], tracks: List[MidiTrack], channels: List[MidiChannel], duration: int):
+    def __init__(self,
+                 events: List[MidiEvent],
+                 tracks: List[MidiTrack],
+                 channels: List[MidiChannel],
+                 metadata: MidiMetaData
+                 ):
         self.events = events
         self.tracks = tracks
         self.channels = channels
-        self.duration = duration
+        self.metadata = metadata
 
 
 class MidiMapper:
@@ -63,18 +80,14 @@ class MidiMapper:
         events = []
         tracks = []
         channels = set()
+        duration_ticks = 0
+        ids = 0
         for i, track in enumerate(midi.tracks):
             tracks.append(MidiTrack(number=i, origin=track.name if hasattr(track, 'name') else 'Unknown'))
-
-            tempo = 500000
-            ticks_per_beat = midi.ticks_per_beat
-            time_per_tick = tempo / ticks_per_beat
             current_time = 0
             note_on_events = {}
-            ids = 0
-
             for msg in track:
-                message_time = (msg.time * time_per_tick) / 1000.0
+                message_time = msg.time
                 current_time += message_time
 
                 if msg.type == 'note_on' and msg.velocity > 0:
@@ -94,31 +107,22 @@ class MidiMapper:
                         ))
                         ids += 1
                 elif msg.type == 'set_tempo':
-                    time_per_tick = tempo / ticks_per_beat
-                    tempo = msg.tempo
+                    begin_when = current_time
+                    events.append(TempoEvent(ids, begin_when, msg.tempo))
+                    ids += 1
                 elif msg.type == 'program_change':
                     begin_when = current_time
-                    events.append(ProgramChangeEvent(ids, i, begin_when, msg.program))
+                    events.append(ProgramChangeEvent(ids, begin_when, msg.channel, msg.program))
                     ids += 1
-        duration_ms = MidiMapper._get_duration(midi)
-        sorted_events_by_time = sorted(events, key=lambda event: (event.begin_when, event.end_when))
+            if current_time > duration_ticks:
+                duration_ticks = current_time
+
+        sorted_events_by_time = sorted(events, key=lambda event: event.begin_when)
+
+        metadata = MidiMetaData(500000, midi.ticks_per_beat, duration_ticks)
         return MidiFile(
             events=sorted_events_by_time,
             tracks=tracks,
             channels=list(channels),
-            duration=duration_ms
+            metadata=metadata
         )
-    @staticmethod
-    def _get_duration(midi_file):
-        tempo = 500000 # default tempo value
-        ticks_per_beat = midi_file.ticks_per_beat
-        total_time_ms = 0
-        for msg in midi_file:
-            if msg.type == 'set_tempo':
-                tempo = msg.tempo
-            if msg.time > 0:
-                time_per_tick_us = tempo / ticks_per_beat
-                time_ms = (msg.time * time_per_tick_us) / 1000.0
-                total_time_ms += time_ms
-
-        return total_time_ms

@@ -1,228 +1,340 @@
 import tkinter as tk
 
-from midis import MidiFile, MidiEvent
+from midis import MidiFile, MidiEvent, SoundEvent, ProgramChangeEvent, TempoEvent
 import threading
 from typing import List, Dict
-
+from abc import ABC, abstractmethod
 from piano import Piano
+from dynamic import DynamicMidiData
 
-class NoteGraphic:
-    def __init__(self, root : tk.Canvas, duration_millis, color = 'white'):
-        self.root = root
+class MidiService:
+    @staticmethod
+    def calculate_ticks(delta_time_ms: int, dynamic: DynamicMidiData) -> int:
+        tempo_in_ms = dynamic.current_tempo / 1000
+        return round((dynamic.ticks_per_beat * delta_time_ms) / tempo_in_ms)
+
+class MidiAction(ABC):
+    @abstractmethod
+    def begin_when(self):
+        pass
+    @abstractmethod
+    def end_when(self):
+        pass
+    def on_register(self):
+        pass
+    def on_press(self):
+        pass
+    def on_release(self):
+        pass
+
+class SoundAction(MidiAction):
+
+    def __init__(self, sound_event: SoundEvent, animation_handler):
+        self.sound_event = sound_event
+        self.animation_handler = animation_handler
+    def on_register(self):
+        self.animation_handler.on_register(self.sound_event)
+    def on_press(self):
+        self.animation_handler.on_press(self.sound_event)
+    def on_release(self):
+        self.animation_handler.on_release(self.sound_event)
+    def begin_when(self):
+        return self.sound_event.begin_when
+    def end_when(self):
+        return self.sound_event.end_when
+
+class TempoAction(MidiAction):
+
+    def begin_when(self):
+        return self.tempo_event.begin_when
+
+    def end_when(self):
+        return self.tempo_event.begin_when
+
+    def __init__(self, tempo_event: TempoEvent, dynamics: DynamicMidiData):
+        self.tempo_event = tempo_event
+        self.dynamics = dynamics
+
+
+    def on_register(self):
+        self.dynamics.current_tempo = self.tempo_event.tempo
+
+class ProgramAction(MidiAction):
+    def begin_when(self):
+        return self.program_event.begin_when
+
+    def end_when(self):
+        return self.program_event.begin_when
+
+    def __init__(self, event: ProgramChangeEvent, dynamics: DynamicMidiData):
+        self.program_event = event
+        self.dynamics = dynamics
+
+    def on_press(self):
+        channel = self.program_event.channel
+        program = self.program_event.program
+        self.dynamics.channel_programs[channel] = program
+class ActionFactory:
+    def __init__(self, animation_handler, dynamics: DynamicMidiData):
+        self.animation_handler = animation_handler
+        self.dynamics = dynamics
+    def create_action(self, event: MidiEvent) -> MidiAction:
+        if isinstance(event, SoundEvent):
+            return self._create_sound_action(event)
+        elif isinstance(event, ProgramChangeEvent):
+            return self._create_program_action(event)
+        elif isinstance(event, TempoEvent):
+            return self._create_tempo_action(event)
+        else:
+            raise Exception(f"Unknown event to convert: {event}")
+
+    def _create_sound_action(self, sound_event: SoundEvent) -> SoundAction:
+        return SoundAction(sound_event, self.animation_handler)
+
+    def _create_program_action(self, program_change_event : ProgramChangeEvent) -> ProgramAction:
+        return ProgramAction(program_change_event, self.dynamics)
+
+    def _create_tempo_action(self, event: TempoEvent) -> TempoAction:
+        return TempoAction(event, self.dynamics)
+
+    def create_all_actions(self, events : List[MidiEvent]) -> List[MidiAction]:
+        actions = []
+        for event in events:
+            action = self.create_action(event)
+            actions.append(action)
+        return actions
+
+class MidiNotesState:
+
+    actions: List[MidiAction]
+
+    def __init__(self, actions: List[MidiAction], duration: int, ticks_before=0, ticks_after=1000):
+        self.actions = actions
+        self.pointer_limit = len(actions)
+        self.lookahead_ticks = 1500
+        self.ticks_before = ticks_before
+        self.ticks_after = ticks_after
+        self.duration_ticks = duration
+        self.current_tick = 0
+        self.tick_into_notes = 0
+        self.full_length = ticks_before + duration + ticks_after
+        self.create_pointer = 0
+        self.slide_pointer = 0
+        self.press_pointer = 0
+        self.pressed_actions = []
+        self.reset_time()
+
+    def reset_time(self):
+        self.current_tick = 0
+        self.tick_into_notes = self.current_tick - self.ticks_before
+        self.create_pointer = 0
+        self.slide_pointer = 0
+        self.press_pointer = 0
+        self.pressed_actions.clear()
+
+
+    def move_time_forward(self, by_ticks: int):
+        updated_tick = self.current_tick + by_ticks
+        updated_into_notes = self.tick_into_notes + by_ticks
+        created = []
+        while self.create_pointer < self.pointer_limit:
+            event = self.actions[self.create_pointer]
+            if updated_into_notes + self.lookahead_ticks >= event.begin_when():
+                created.append(event)
+                self.create_pointer += 1
+            else:
+                break
+        pressed = []
+        while self.slide_pointer < self.pointer_limit:
+            event = self.actions[self.slide_pointer]
+            if updated_into_notes >= event.begin_when():
+                pressed.append(event)
+                self.slide_pointer += 1
+                self.pressed_actions.append(event)
+            else:
+                break
+
+        unpressed = []
+        for event in self.pressed_actions:
+            if updated_into_notes >= event.end_when():
+                unpressed.append(event)
+        for event in unpressed:
+            self.pressed_actions.remove(event)
+        self.current_tick = updated_tick
+        self.tick_into_notes = updated_into_notes
+        for event in created:
+            event.on_register()
+        for event in pressed:
+            event.on_press()
+        for event in unpressed:
+            event.on_release()
+
+    def finished(self):
+        return self.current_tick > self.full_length
+
+
+# def align_key(self, displayable: DisplayableNote, duration: int):
+#     white_width = self.piano.dynamic_gfx.white_width
+#     black_width = self.piano.dynamic_gfx.black_width
+#     key = self.piano.key_id_of(displayable.note)
+#     color = key.color
+#
+#     height = self.pixels_per_millisecond * duration
+#
+#     if color == "white":
+#         new_x = key.normalized_position * white_width / 2
+#         displayable.graphic.move_by(new_x, -height)
+#         displayable.graphic.resize(white_width, height)
+#     else:
+#         new_x = key.normalized_position * white_width / 2
+#         displayable.graphic.move_by(new_x, -height)
+#         displayable.graphic.resize(black_width, height)
+
+
+class SlidingNote:
+    def __init__(self,
+                 created_by_id: int,
+                 key_id: int,
+                 channel_id: int,
+                 created_tick: int,
+                 press_tick: int,
+                 end_tick: int,
+                 canvas: tk.Canvas):
+        self.created_by_id = created_by_id
+        self.press_tick = press_tick
+        self.created_tick = created_tick
+        self.canvas = canvas
+        self.note_id = key_id
+        self.channel_id = channel_id
+        self.end_tick = end_tick
+        self.color = 'white'
+        self.shape = self.canvas.create_rectangle(0, 0, 0, 0, fill=self.color)
         self.pos_x = 0
         self.pos_y = 0
         self.width = 0
         self.height = 0
-        self.color = color
-        self.duration_millis = duration_millis
-        self.graphic = self.root.create_rectangle(0, 0, 0, 0, fill=color)
+        self.building = True
+
     def move_by(self, x, y):
         self.pos_x += x
         self.pos_y += y
-        self.root.move(self.graphic, x, y)
+        self.canvas.move(self.shape, x, y)
+
     def resize(self, width, height):
         self.width = width
         self.height = height
-        self.root.coords(self.graphic, self.pos_x, self.pos_y, self.pos_x+self.width, self.pos_y+self.height)
+        self.canvas.coords(self.shape, self.pos_x, self.pos_y, self.pos_x+self.width, self.pos_y+self.height)
+
     def set_channel_color(self, color):
         self.color = color
-        self.root.itemconfig(self.graphic, fill=color)
+        self.canvas.itemconfig(self.shape, fill=color)
+
     def remove(self):
-        self.root.delete(self.graphic)
+        self.canvas.delete(self.shape)
 
-class DisplayableNote:
-    def __init__(self, note: MidiEvent, graphic: NoteGraphic):
-        self.note = note
-        self.graphic = graphic
-
-
-class DisplayEvent:
-    def __init__(self, midi_event: MidiEvent, e_type: str):
-        self.midi_event = midi_event
-        self.e_type = e_type
-
-class MidiNotesState:
-
-    notes: List[MidiEvent]
-
-    def __init__(self, notes: List[MidiEvent], duration: int, millis_before=1000, millis_after=1000):
-        self.notes = notes
-        self.lookahead_millis = 1500
-        self.millis_before = millis_before
-        self.millis_after = millis_after
-        self.duration = duration
-        self.time = 0
-        self.time_into_notes = 0
-        self.full_length = duration + millis_before + millis_after
-        self.create_queue = []
-        self.slide_queue = []
-        self.pressed_queue = []
-        self.set_time_to(0)
-
-    def set_time_to(self, time_millis):
-        self.time = time_millis
-        self.time_into_notes = self.time - self.millis_before
-        self.create_queue.clear()
-        self.slide_queue.clear()
-        self.slide_queue.clear()
-        after_lookahead = self.time + self.lookahead_millis
-        align_events = []
-        for note in self.notes:
-            if note.end_when <= self.time_into_notes:
-                # note has already played
-                continue
-            if note.begin_when <= self.time_into_notes:
-                # note is playing
-                self.pressed_queue.append(note)
-                align_events.append(DisplayEvent(note, "align"))
-            elif note.begin_when <= after_lookahead:
-                # note is sliding
-                self.slide_queue.append(note)
-                align_events.append(DisplayEvent(note, "align"))
-            else:
-                # note has not been created yet
-                self.create_queue.append(note)
-        return align_events
-    def move_time_forward(self, by_millis: int) -> List[DisplayEvent]:
-        updated_time = self.time + by_millis
-        updated_into_notes = self.time_into_notes + by_millis
-        print(self.time_into_notes)
-        created = []
-        while len(self.create_queue) > 0:
-            event = self.create_queue[0]
-            if updated_into_notes + self.lookahead_millis >= event.begin_when:
-                created.append(event)
-                self.create_queue.pop(0)
-            else:
-                break
-        pressed = []
-        while len(self.slide_queue) > 0:
-            event = self.slide_queue[0]
-            if updated_into_notes >= event.begin_when:
-                pressed.append(event)
-                self.slide_queue.pop(0)
-            else:
-                break
-        for event in created:
-            self.slide_queue.append(event)
-        unpressed = []
-        for event in self.pressed_queue:
-            if updated_into_notes >= event.end_when:
-                unpressed.append(event)
-        for event in unpressed:
-            self.pressed_queue.remove(event)
-        self.time = updated_time
-        self.time_into_notes = updated_into_notes
-        display_events = []
-        for event in created:
-            display_events.append(DisplayEvent(event, "register"))
-        for event in pressed:
-            display_events.append(DisplayEvent(event, "press"))
-        for event in unpressed:
-            display_events.append(DisplayEvent(event, "destroy"))
-        return display_events
-
-    def finished(self):
-        return self.time > self.full_length
+    def stretch_by(self, add_width, add_height):
+        self.width = self.width + add_width
+        self.height = self.height + add_height
+        self.canvas.coords(self.shape, self.pos_x, self.pos_y, self.pos_x+self.width, self.pos_y+self.height)
 
 
-class MidiNotesEventConsumer:
-    note_displays: Dict[int, DisplayableNote]
-    def __init__(self, context: tk.Canvas, piano: Piano, width, height):
-        self.context = context
+class SlidingNotes:
+    active_notes: List[SlidingNote]
+    def __init__(self, dynamics: DynamicMidiData):
+        self.dynamics = dynamics
+        self.active_notes = []
+
+    def include(self, sliding_note : SlidingNote):
+        self.active_notes.append(sliding_note)
+
+    def exclude(self, sliding_note : SlidingNote):
+        self.active_notes.remove(sliding_note)
+
+    def update_every_note(self, ticks_passed):
+        current = self.dynamics.current_tick
+        next_tick = current + ticks_passed
+        camera_moved_by =  ticks_passed * self.dynamics.pixels_per_tick
+        for active_note in self.active_notes:
+            ending = active_note.end_tick
+            move_value = 0
+            stretch_value = 0
+            if ending < current:
+                stretch_value = camera_moved_by
+            elif current < ending < next_tick:
+                ticks_build = ending - current
+                ticks_move = next_tick - ending
+                move_value = ticks_move * self.dynamics.pixels_per_tick
+                stretch_value = ticks_build * self.dynamics.pixels_per_tick
+            elif next_tick < ending:
+                move_value = camera_moved_by
+            if stretch_value > 0:
+                active_note.stretch_by(0, stretch_value)
+            if move_value:
+                active_note.move_by(0, move_value)
+
+
+class NoteAnimationHandler:
+    notes_map: Dict[int, SlidingNote]
+    def __init__(self, canvas : tk.Canvas, piano: Piano, dynamics:DynamicMidiData):
         self.piano = piano
-        self.note_displays = {} # int id : note_display
-        self.width = width
-        self.height = height
-        self.scroll_speed = 5
-        self.time_on_screen = self.height / self.scroll_speed
-        self.pixels_per_millisecond = self.height / self.time_on_screen
+        self.dynamics = dynamics
+        self.sliding_notes = SlidingNotes(dynamics)
+        self.notes_map = {}
+        self.canvas = canvas
+    def on_register(self, event : SoundEvent):
+        created_by = event.identity
+        key_id = self.piano.key_id_of(event)
+        sliding_note = SlidingNote(
+            created_by_id = created_by,
+            key_id = key_id.index,
+            channel_id=event.channel,
+            created_tick=self.dynamics.current_tick,
+            press_tick=event.begin_when,
+            end_tick=event.end_when,
+            canvas=self.canvas
+        )
+        sliding_note.resize(20, 20)
+        sliding_note.move_by(20, 20)
+        self.notes_map[created_by] = sliding_note
+        self.sliding_notes.include(sliding_note)
+        print(f"Register {event.identity}")
+    def on_press(self, event : SoundEvent):
+        self.piano.press(event)
+        print(f"Press {event.identity}")
+    def on_release(self, event : SoundEvent):
+        print(f"Release {event.identity}")
+        self.piano.release(event)
+        sliding_note = self.notes_map.pop(event.identity)
+        self.sliding_notes.exclude(sliding_note)
+        sliding_note.remove()
+    def update(self, ticks):
+        self.sliding_notes.update_every_note(ticks)
 
-    def update_geometry(self, width, height):
-        self.width = width
-        self.height = height
-        self.pixels_per_millisecond = self.height / self.time_on_screen
-
-    def set_speed(self, speed):
-        self.scroll_speed = speed
-        self.time_on_screen = self.height / self.scroll_speed
-
-    def align_key(self, displayable: DisplayableNote, duration: int):
-        white_only = self.piano.pparams.keys_white
-        white_width = self.piano.dynamic_gfx.white_width
-        black_width = self.piano.dynamic_gfx.black_width
-        key = self.piano.key_id_of(displayable.note)
-        color = key.color
-
-        height = self.pixels_per_millisecond * duration
-
-        if color == "white":
-            new_x = key.normalized_position * white_width / 2
-            displayable.graphic.move_by(new_x, -height)
-            displayable.graphic.resize(white_width, height)
-        else:
-            new_x = key.normalized_position * white_width / 2
-            displayable.graphic.move_by(new_x, -height)
-            displayable.graphic.resize(black_width, height)
-
-    def process_events(self, past_millis, display_events: List[DisplayEvent]):
-        for display in self.note_displays.values():
-            gr = display.graphic
-            gr.move_by(0, past_millis * self.pixels_per_millisecond)
-        for event in display_events:
-            if event.e_type == "register":
-                #append display event
-                print("register")
-                if event.midi_event.event_type()=="sound":
-                    self.create_graphics_for(event)
-            elif event.e_type == "press":
-                print("pressing")
-                # press piano key
-                if event.midi_event.event_type()=="sound":
-                    self.piano.press(event.midi_event)
-                elif event.midi_event.event_type()=="program":
-                    print("Change program info")
-            elif event.e_type == "destroy":
-                # out of bounds, no longer track
-                self.piano.release(event.midi_event)
-                graphic = self.note_displays.pop(event.midi_event.identity, __default=None)
-                if graphic:
-                    graphic.graphic.remove()
-            elif event.e_type == "align":
-                # unexpected
-                raise Exception("Unexpected align event while playing midi file")
-            else:
-                raise Exception("Unknown event type")
-
-    def create_graphics_for(self, event):
-        duration = event.midi_event.end_when - event.midi_event.begin_when
-        graphic = NoteGraphic(self.context, duration, color='red')
-        displayable = DisplayableNote(event.midi_event, graphic)
-        self.align_key(displayable, duration)
-        self.note_displays[event.midi_event.identity] = displayable
-
-    def recreate(self, new_time, display_events: List[DisplayEvent]):
-        pass
 
 class MidiNotesDisplay:
 
-    def __init__(self, root : tk.Frame, piano : Piano):
+    def __init__(self, root : tk.Frame, piano : Piano, dynamics: DynamicMidiData):
         self.root = root
+        self.dynamics = dynamics
         self.canvas = tk.Canvas(root, bg='gray')
         self.mini_notes_state = None
-        self.event_consumer = MidiNotesEventConsumer(self.canvas, piano, root.winfo_width(), root.winfo_height())
         self.is_loaded = threading.Event()
         self.is_loaded.clear()
         self.is_playing = threading.Event()
         self.is_playing.clear()
         self.is_finished = threading.Event()
         self.is_finished.clear()
+
+        self.note_animation = NoteAnimationHandler(self.canvas, piano, dynamics)
+        self.actions_factory = ActionFactory(self.note_animation, dynamics)
+
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
 
     def load_notes(self, midi_file: MidiFile):
-        duration = midi_file.duration
-        self.mini_notes_state = MidiNotesState(midi_file.events, duration)
+        duration_ticks = midi_file.metadata.duration_ticks
+        action_list = self.actions_factory.create_all_actions(midi_file.events)
+        self.mini_notes_state = MidiNotesState(action_list, duration_ticks)
         self.is_loaded.set()
         self.is_playing.clear()
         self.is_finished.clear()
@@ -234,16 +346,17 @@ class MidiNotesDisplay:
         self.mini_notes_state = None
 
     def update(self, past_millis):
-
         if not self.is_loaded.is_set():
             print("NOT LOADED")
             return
         if self.is_playing.is_set():
-            display_events = self.mini_notes_state.move_time_forward(past_millis)
-            self.event_consumer.process_events(past_millis, display_events)
+            ticks_passed = MidiService.calculate_ticks(past_millis, self.dynamics)
+            self.mini_notes_state.move_time_forward(ticks_passed)
+            self.note_animation.update(ticks_passed)
             if self.mini_notes_state.finished():
                 print("FINISH")
                 self._finish()
+            self.dynamics.current_tick = self.dynamics.current_tick + ticks_passed
 
     def _finish(self):
         self.is_finished.set()
@@ -259,8 +372,6 @@ class MidiNotesDisplay:
     def set_time(self, time_millis):
         if not self.is_loaded.is_set():
             return
-        update_events = self.mini_notes_state.set_time_to(time_millis)
-        self.event_consumer.recreate(time_millis, update_events)
         if self.mini_notes_state.finished():
             self.is_finished.set()
         else:
@@ -270,4 +381,3 @@ class MidiNotesDisplay:
         if not self.is_loaded.is_set():
             return
         self.is_playing.clear()
-
