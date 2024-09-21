@@ -4,7 +4,7 @@ from midis import MidiFile, MidiEvent, SoundEvent, ProgramChangeEvent, TempoEven
 import threading
 from typing import List, Dict
 from abc import ABC, abstractmethod
-from piano import Piano
+from piano import Piano, PianoKey
 from dynamic import DynamicMidiData
 
 class MidiService:
@@ -177,7 +177,7 @@ class MidiNotesState:
 class SlidingNote:
     def __init__(self,
                  created_by_id: int,
-                 key_id: int,
+                 key: PianoKey,
                  channel_id: int,
                  created_tick: int,
                  press_tick: int,
@@ -187,7 +187,7 @@ class SlidingNote:
         self.press_tick = press_tick
         self.created_tick = created_tick
         self.canvas = canvas
-        self.key_id = key_id
+        self.key = key
         self.channel_id = channel_id
         self.end_tick = end_tick
         self.key_color = 'white'
@@ -267,12 +267,12 @@ class SlidingNotes:
         white_width = self.piano.dynamic_gfx.white_width
         black_width = self.piano.dynamic_gfx.black_width
         color = sliding_note.key_color
-        key = self.piano.keys[sliding_note.key_id]
+        key = sliding_note.key
         if color == "white":
-            new_x = key.normalized_position * white_width / 2
+            new_x = key.normalized_position * white_width
             sliding_note.move_by(new_x, 0)
         else:
-            new_x = key.normalized_position * white_width / 2
+            new_x = key.normalized_position * white_width
             sliding_note.move_by(new_x, 0)
 
         self._move_sliding_note(sliding_note, current_tick, note_alive)
@@ -292,7 +292,7 @@ class NoteAnimationHandler:
         key_id = self.piano.key_id_of(event)
         sliding_note = SlidingNote(
             created_by_id = created_by,
-            key_id = key_id.index,
+            key = key_id,
             channel_id=event.channel,
             created_tick=event.begin_when - self.dynamics.ticks_lookahead,
             press_tick=event.begin_when,
