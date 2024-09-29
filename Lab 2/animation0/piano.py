@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List
 
+from MusicPlayer import MusicPlayer
 from dynamic import DynamicMidiData
 from midis import SoundEvent
 
@@ -199,7 +200,7 @@ class PianoCreationParams:
         self.height = height
 class PianoCreator(ABC):
     @abstractmethod
-    def create_piano(self, dynamic : DynamicMidiData, params : PianoCreationParams) -> Piano:
+    def create_piano(self, dynamic : DynamicMidiData,  params : PianoCreationParams) -> Piano:
         pass
 
 class PianoCreator88(PianoCreator):
@@ -212,7 +213,8 @@ class PianoCreator88(PianoCreator):
 
         return notes_map
 
-    def create_piano(self, dynamic : DynamicMidiData, piano_params: PianoCreationParams) -> Piano:
+    def create_piano(self, dynamic : DynamicMidiData,
+                     piano_params: PianoCreationParams) -> Piano:
         keys = []
         pparams = PianoParams(total=88, white=52, black=36)
         gparams = PianoGraphicConfig()

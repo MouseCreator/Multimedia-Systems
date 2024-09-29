@@ -1,5 +1,6 @@
 import tkinter as tk
 
+from MusicPlayer import MusicPlayer, ProgramMessage, BeginMessage, EndMessage
 from midis import MidiFile, MidiEvent, SoundEvent, ProgramChangeEvent, TempoEvent
 import threading
 from typing import List, Dict
@@ -32,15 +33,18 @@ class MidiAction(ABC):
 
 class SoundAction(MidiAction):
 
-    def __init__(self, sound_event: SoundEvent, animation_handler):
+    def __init__(self, sound_event: SoundEvent, animation_handler, music_player : MusicPlayer):
         self.sound_event = sound_event
         self.animation_handler = animation_handler
+        self.music_player = music_player
     def on_register(self):
         self.animation_handler.on_register(self.sound_event)
     def on_press(self):
         self.animation_handler.on_press(self.sound_event)
+        self.music_player.play(BeginMessage(self.sound_event.note, self.sound_event.channel, self.sound_event.volume))
     def on_release(self):
         self.animation_handler.on_release(self.sound_event)
+        self.music_player.play(EndMessage(self.sound_event.note, self.sound_event.channel))
     def begin_when(self):
         return self.sound_event.begin_when
     def end_when(self):
@@ -59,7 +63,7 @@ class TempoAction(MidiAction):
         self.dynamics = dynamics
 
 
-    def on_register(self):
+    def on_press(self):
         self.dynamics.current_tempo = self.tempo_event.tempo
 
 class ProgramAction(MidiAction):
@@ -69,18 +73,22 @@ class ProgramAction(MidiAction):
     def end_when(self):
         return self.program_event.begin_when
 
-    def __init__(self, event: ProgramChangeEvent, dynamics: DynamicMidiData):
+    def __init__(self, event: ProgramChangeEvent, dynamics: DynamicMidiData, music_player : MusicPlayer):
         self.program_event = event
         self.dynamics = dynamics
+        self.music_player = music_player
 
     def on_press(self):
         channel = self.program_event.channel
         program = self.program_event.program
         self.dynamics.channel_programs[channel] = program
+        self.music_player.play(ProgramMessage(program, channel))
 class ActionFactory:
-    def __init__(self, animation_handler, dynamics: DynamicMidiData):
+    def __init__(self, animation_handler, dynamics: DynamicMidiData, music_player : MusicPlayer):
         self.animation_handler = animation_handler
         self.dynamics = dynamics
+        self.music_player = music_player
+
     def create_action(self, event: MidiEvent) -> MidiAction:
         if isinstance(event, SoundEvent):
             return self._create_sound_action(event)
@@ -92,10 +100,10 @@ class ActionFactory:
             raise Exception(f"Unknown event to convert: {event}")
 
     def _create_sound_action(self, sound_event: SoundEvent) -> SoundAction:
-        return SoundAction(sound_event, self.animation_handler)
+        return SoundAction(sound_event, self.animation_handler, self.music_player)
 
     def _create_program_action(self, program_change_event : ProgramChangeEvent) -> ProgramAction:
-        return ProgramAction(program_change_event, self.dynamics)
+        return ProgramAction(program_change_event, self.dynamics, self.music_player)
 
     def _create_tempo_action(self, event: TempoEvent) -> TempoAction:
         return TempoAction(event, self.dynamics)
@@ -335,7 +343,7 @@ class NoteAnimationHandler:
 
 class MidiNotesDisplay:
     # TODO: FOR AUDIO OUTPUT ADD ASSOCIATED EVENTS (origins)
-    def __init__(self, root : tk.Frame, piano : Piano, dynamics: DynamicMidiData):
+    def __init__(self, root : tk.Frame, piano : Piano, dynamics: DynamicMidiData, music_player : MusicPlayer):
         self.root = root
         self.dynamics = dynamics
         self.canvas = tk.Canvas(root, bg='gray')
@@ -348,7 +356,7 @@ class MidiNotesDisplay:
         self.is_finished.clear()
 
         self.note_animation = NoteAnimationHandler(self.canvas, piano, dynamics)
-        self.actions_factory = ActionFactory(self.note_animation, dynamics)
+        self.actions_factory = ActionFactory(self.note_animation, dynamics, music_player)
         self.dynamics.current_tick = -self.dynamics.ticks_before
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.dynamics.pixels_per_tick = self.canvas.winfo_height() / self.dynamics.ticks_lookahead

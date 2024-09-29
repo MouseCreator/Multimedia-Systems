@@ -1,6 +1,7 @@
 import mido
 import tkinter as tk
 
+from MusicPlayer import MusicPlayer
 from display import MidiNotesDisplay
 from dynamic import DynamicMidiData
 from engine import Engine
@@ -16,6 +17,7 @@ class MidiPlayer:
     notes_display: MidiNotesDisplay | None
     size_tracker: SizeTracker | None
     engine: Engine | None
+    music_player: MusicPlayer | None
 
     def __init__(self):
         self.root = tk.Tk()
@@ -30,12 +32,19 @@ class MidiPlayer:
         self.midi_notes_pane = None
         self.size_tracker = None
         self.notes_display = None
+        self.music_player = None
 
     def on_resize(self, width, height):
         self.piano.resize(width*DEFINES.REL_PIANO_WIDTH, height*DEFINES.REL_PIANO_HEIGHT)
         self.notes_display.on_resize(width*DEFINES.REL_PIANO_WIDTH, height*DEFINES.REL_MIDI_PLAYER_HEIGHT)
-    def setup_layout(self):
+
+    def setup_meta(self):
+        self.music_player = MusicPlayer()
+        self.music_player.start()
         self.midi_file = self.load_midi("resource/audio/overworld.mid")
+
+    def setup_layout(self):
+
         self.root.geometry(f"{DEFINES.DEFAULT_WINDOW_WIDTH}x{DEFINES.DEFAULT_WINDOW_HEIGHT}")
         self.root.title("Midi Animation")
         self.root.minsize(DEFINES.MIN_WINDOW_WIDTH, DEFINES.MIN_WINDOW_HEIGHT)
@@ -59,7 +68,7 @@ class MidiPlayer:
                                    relheight=DEFINES.REL_MIDI_PLAYER_HEIGHT,
                                    relwidth=DEFINES.REL_PIANO_WIDTH)
 
-        self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano, self.dynamics)
+        self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano, self.dynamics, self.music_player)
         mapped_file = MidiMapper.map_to_midi_file("resource/audio/overworld.mid")
         self.apply_metadata(mapped_file)
         self.notes_display.load_notes(mapped_file)
@@ -75,6 +84,7 @@ class MidiPlayer:
         self.root.mainloop()
 
     def begin(self):
+        self.setup_meta()
         self.setup_layout()
         self.main_loop()
 

@@ -18,5 +18,5 @@ class DynamicMidiData:
         self.channel_colors = ['red', 'blue', 'violet', 'white', 'red', 'blue', 'violet', 'white', 'red', 'blue', 'violet', 'white', 'red', 'blue', 'violet', 'white'] if channel_colors is None else channel_colors
         self.channel_programs = [0] * 16 if channel_colors is None else channel_programs
         self.duration_ticks = duration_ticks
-        self.ticks_before = 1000
+        self.ticks_before = 0
         self.ticks_after = 1000
