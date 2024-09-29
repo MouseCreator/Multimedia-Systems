@@ -41,7 +41,7 @@ class MidiPlayer:
     def setup_meta(self):
         self.music_player = MusicPlayer()
         self.music_player.start()
-        self.midi_file = self.load_midi("resource/audio/overworld.mid")
+        self.midi_file = self.load_midi("resource/audio/ghoul.mid")
 
     def setup_layout(self):
 
@@ -69,7 +69,7 @@ class MidiPlayer:
                                    relwidth=DEFINES.REL_PIANO_WIDTH)
 
         self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano, self.dynamics, self.music_player)
-        mapped_file = MidiMapper.map_to_midi_file("resource/audio/overworld.mid")
+        mapped_file = MidiMapper.map_to_midi_file("resource/audio/ghoul.mid")
         self.apply_metadata(mapped_file)
         self.notes_display.load_notes(mapped_file)
         self.notes_display.play()
