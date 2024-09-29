@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List
 
+from dynamic import DynamicMidiData
 from midis import SoundEvent
 
 
@@ -58,11 +59,11 @@ class PianoKey:
     def on_raise(self, canvas: tk.Canvas):
         canvas.tag_raise(self.visual.shape)
 
-    def on_press(self, note_to_play):
-        self.visual.press("red")
+    def on_press(self, note_to_play, color: str):
+        self.visual.press(color)
 
-    def on_release(self, note_to_release):
-        self.visual.release("red")
+    def on_release(self, note_to_release, color: str):
+        self.visual.release(color)
 
 
 class PianoParams:
@@ -98,6 +99,7 @@ class Piano:
     dynamic_gfx : DynamicGraphicalParams
     def __init__(self,
                  canvas: tk.Canvas,
+                 dynamic : DynamicMidiData,
                  keys: List[PianoKey],
                  pparams: PianoParams,
                  gparams: PianoGraphicConfig,
@@ -106,6 +108,7 @@ class Piano:
         self.pparams = pparams
         self.gparams = gparams
         self.canvas = canvas
+        self.dynamic = dynamic
         self.note_map = note_map
         self.dynamic_gfx = DynamicGraphicalParams()
 
@@ -120,12 +123,14 @@ class Piano:
     def press(self, note_to_play : SoundEvent):
         key_index = self.note_map.when_pressed(note_to_play.note)
         key = self.keys[key_index]
-        key.on_press(note_to_play)
+        color = self.dynamic.channel_colors[note_to_play.channel]
+        key.on_press(note_to_play, color)
 
     def release(self, note_to_release : SoundEvent):
         key_index = self.note_map.when_pressed(note_to_release.note)
         key = self.keys[key_index]
-        key.on_release(note_to_release)
+        color = self.dynamic.channel_colors[note_to_release.channel]
+        key.on_release(note_to_release, color)
     def key_id_of(self, target_note : SoundEvent) -> PianoKey:
         key_index = self.note_map.when_pressed(target_note.note)
         return self.keys[key_index]
@@ -194,7 +199,7 @@ class PianoCreationParams:
         self.height = height
 class PianoCreator(ABC):
     @abstractmethod
-    def create_piano(self, root):
+    def create_piano(self, dynamic : DynamicMidiData, params : PianoCreationParams) -> Piano:
         pass
 
 class PianoCreator88(PianoCreator):
@@ -207,7 +212,7 @@ class PianoCreator88(PianoCreator):
 
         return notes_map
 
-    def create_piano(self, piano_params: PianoCreationParams) -> Piano:
+    def create_piano(self, dynamic : DynamicMidiData, piano_params: PianoCreationParams) -> Piano:
         keys = []
         pparams = PianoParams(total=88, white=52, black=36)
         gparams = PianoGraphicConfig()
@@ -235,7 +240,7 @@ class PianoCreator88(PianoCreator):
             else:
                 black_keys.append(actual_key)
         notes_map = PianoCreator88.create_note_map()
-        piano = Piano(canvas, keys, pparams, gparams, notes_map)
+        piano = Piano(canvas, dynamic, keys, pparams, gparams, notes_map)
         for black_key in black_keys:
             black_key.on_raise(canvas)
         return piano

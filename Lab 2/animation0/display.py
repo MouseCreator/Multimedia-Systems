@@ -317,6 +317,8 @@ class NoteAnimationHandler:
             end_tick=event.end_when,
             canvas=self.canvas
         )
+        key = self.piano.key_id_of(event)
+        sliding_note.key_color = key.color
         sliding_note.resize(20, 0)
 
         self.sliding_notes.adjust_position(sliding_note)

@@ -52,7 +52,7 @@ class MidiPlayer:
                               relwidth=DEFINES.REL_PIANO_WIDTH,
                               relheight=DEFINES.REL_PIANO_HEIGHT)
         initial_piano = PianoCreationParams(self.piano_pane, DEFINES.DEFAULT_PIANO_WIDTH, DEFINES.DEFAULT_PIANO_HEIGHT)
-        self.piano = creator.create_piano(initial_piano)
+        self.piano = creator.create_piano(self.dynamics, initial_piano)
         self.engine = Engine(self.root)
         self.midi_notes_pane = tk.Frame(self.main_bar, bg='gray')
         self.midi_notes_pane.place(relx=DEFINES.REL_SIDEBAR_WIDTH,
