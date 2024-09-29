@@ -31,8 +31,9 @@ class MidiPlayer:
         self.size_tracker = None
         self.notes_display = None
 
-    def on_piano_resize(self, width, height):
-        self.piano.resize(width, height)
+    def on_resize(self, width, height):
+        self.piano.resize(width*DEFINES.REL_PIANO_WIDTH, height*DEFINES.REL_PIANO_HEIGHT)
+        self.notes_display.on_resize(width*DEFINES.REL_PIANO_WIDTH, height*DEFINES.REL_MIDI_PLAYER_HEIGHT)
     def setup_layout(self):
         self.midi_file = self.load_midi("resource/audio/overworld.mid")
         self.root.geometry(f"{DEFINES.DEFAULT_WINDOW_WIDTH}x{DEFINES.DEFAULT_WINDOW_HEIGHT}")
@@ -64,10 +65,10 @@ class MidiPlayer:
         self.notes_display.load_notes(mapped_file)
         self.notes_display.play()
         self.engine.register(self.notes_display.update)
-        self.size_tracker = SizeTracker(self.piano_pane)
-        self.size_tracker.register(self.on_piano_resize)
+        self.size_tracker = SizeTracker(self.root)
+        self.size_tracker.register(self.on_resize)
         self.size_tracker.bind_config()
-        self.size_tracker.resize_to(DEFINES.DEFAULT_PIANO_WIDTH, DEFINES.DEFAULT_PIANO_HEIGHT)
+        self.size_tracker.resize_to(DEFINES.DEFAULT_WINDOW_WIDTH, DEFINES.DEFAULT_WINDOW_HEIGHT)
         self.engine.start()
 
     def main_loop(self):

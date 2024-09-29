@@ -20,10 +20,13 @@ class MidiAction(ABC):
     @abstractmethod
     def end_when(self):
         pass
+
     def on_register(self):
         pass
+
     def on_press(self):
         pass
+
     def on_release(self):
         pass
 
@@ -220,6 +223,13 @@ class SlidingNote:
         self.height = self.height + add_height
         self.canvas.coords(self.shape, self.pos_x, self.pos_y, self.pos_x+self.width, self.pos_y+self.height)
 
+    def move_to(self, new_x, new_y):
+        by_x = new_x - self.pos_x
+        by_y = new_y - self.pos_y
+        self.pos_x = new_x
+        self.pos_y = new_y
+        self.canvas.move(self.shape, by_x, by_y)
+
 
 class SlidingNotes:
     active_notes: List[SlidingNote]
@@ -242,18 +252,20 @@ class SlidingNotes:
     def _move_sliding_note(self, active_note: SlidingNote, current : int, ticks_passed : int):
         ending = active_note.end_tick
         move_value = 0
+        visible_lookahead = current + self.dynamics.ticks_lookahead
+        visible_lookahead_next = visible_lookahead + ticks_passed
         next_tick = current + ticks_passed
         stretch_value = 0
         camera_moved_by = ticks_passed * self.dynamics.pixels_per_tick
-        if ending < current:
-            stretch_value = camera_moved_by
-        elif current < ending < next_tick:
-            ticks_build = ending - current
+        if ending > visible_lookahead:
+             stretch_value = camera_moved_by
+        elif visible_lookahead_next > ending > visible_lookahead :
+            ticks_build = ending - visible_lookahead
             ticks_move = next_tick - ending
             move_value = ticks_move * self.dynamics.pixels_per_tick
             stretch_value = ticks_build * self.dynamics.pixels_per_tick
-        elif next_tick < ending:
-            move_value = camera_moved_by
+        elif visible_lookahead_next > ending:
+             move_value = camera_moved_by
         if stretch_value > 0:
             active_note.stretch_by(0, stretch_value)
         if move_value > 0:
@@ -263,19 +275,25 @@ class SlidingNotes:
         current_tick = self.dynamics.current_tick
         note_created = sliding_note.created_tick
         note_alive = current_tick - note_created
-
+        note_full = sliding_note.end_tick - sliding_note.press_tick
+        size_def = min(note_alive, note_full)
         white_width = self.piano.dynamic_gfx.white_width
         black_width = self.piano.dynamic_gfx.black_width
         color = sliding_note.key_color
         key = sliding_note.key
+        pixels_per_tick = self.dynamics.pixels_per_tick
         if color == "white":
             new_x = key.normalized_position * white_width
-            sliding_note.move_by(new_x, 0)
+            sliding_note.move_to(new_x, note_alive * pixels_per_tick)
+            sliding_note.resize(white_width, size_def * pixels_per_tick)
         else:
             new_x = key.normalized_position * white_width
-            sliding_note.move_by(new_x, 0)
+            sliding_note.move_to(new_x, note_alive * pixels_per_tick)
+            sliding_note.resize(black_width, size_def * pixels_per_tick)
 
-        self._move_sliding_note(sliding_note, current_tick, note_alive)
+    def when_resized(self):
+        for note in self.active_notes:
+            self.adjust_position(note)
 
 
 
@@ -299,12 +317,15 @@ class NoteAnimationHandler:
             end_tick=event.end_when,
             canvas=self.canvas
         )
+        sliding_note.resize(20, 0)
 
         self.sliding_notes.adjust_position(sliding_note)
-        sliding_note.resize(20, 20)
+        channel = sliding_note.channel_id
+        sliding_note.set_channel_color(self.dynamics.channel_colors[channel])
         self.notes_map[created_by] = sliding_note
         self.sliding_notes.include(sliding_note)
         print(f"Register {event.identity}")
+
     def on_press(self, event : SoundEvent):
         self.piano.press(event)
         print(f"Press {event.identity}")
@@ -316,6 +337,9 @@ class NoteAnimationHandler:
         sliding_note.remove()
     def update(self, ticks):
         self.sliding_notes.update_every_note(ticks)
+
+    def when_resized(self):
+        self.sliding_notes.when_resized()
 
 
 class MidiNotesDisplay:
@@ -334,8 +358,9 @@ class MidiNotesDisplay:
 
         self.note_animation = NoteAnimationHandler(self.canvas, piano, dynamics)
         self.actions_factory = ActionFactory(self.note_animation, dynamics)
-
+        self.dynamics.current_tick = 0
         self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.dynamics.pixels_per_tick = self.canvas.winfo_height() / self.dynamics.ticks_lookahead
 
 
     def load_notes(self, midi_file: MidiFile):
@@ -351,6 +376,11 @@ class MidiNotesDisplay:
         self.is_playing.clear()
         self.is_finished.clear()
         self.mini_notes_state = None
+
+    def on_resize(self, width, height):
+        self.canvas.place(width=width, height=height)
+        self.dynamics.pixels_per_tick =  self.canvas.winfo_height() / self.dynamics.ticks_lookahead
+        self.note_animation.when_resized()
 
     def update(self, past_millis):
         if not self.is_loaded.is_set():
