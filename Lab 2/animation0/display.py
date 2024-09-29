@@ -110,17 +110,11 @@ class ActionFactory:
 class MidiNotesState:
 
     actions: List[MidiAction]
-
-    def __init__(self, actions: List[MidiAction], duration: int, ticks_before=0, ticks_after=1000):
+    dynamic: DynamicMidiData
+    def __init__(self, actions: List[MidiAction], dynamic: DynamicMidiData, duration: int):
         self.actions = actions
+        self.dynamic = dynamic
         self.pointer_limit = len(actions)
-        self.lookahead_ticks = 1500
-        self.ticks_before = ticks_before
-        self.ticks_after = ticks_after
-        self.duration_ticks = duration
-        self.current_tick = 0
-        self.tick_into_notes = 0
-        self.full_length = ticks_before + duration + ticks_after
         self.create_pointer = 0
         self.slide_pointer = 0
         self.press_pointer = 0
@@ -128,21 +122,18 @@ class MidiNotesState:
         self.reset_time()
 
     def reset_time(self):
-        self.current_tick = 0
-        self.tick_into_notes = self.current_tick - self.ticks_before
         self.create_pointer = 0
         self.slide_pointer = 0
         self.press_pointer = 0
         self.pressed_actions.clear()
 
 
-    def move_time_forward(self, by_ticks: int):
-        updated_tick = self.current_tick + by_ticks
-        updated_into_notes = self.tick_into_notes + by_ticks
+    def move_time_forward(self):
+        updated_into_notes = self.dynamic.current_tick
         created = []
         while self.create_pointer < self.pointer_limit:
             event = self.actions[self.create_pointer]
-            if updated_into_notes + self.lookahead_ticks >= event.begin_when():
+            if updated_into_notes + self.dynamic.ticks_lookahead >= event.begin_when():
                 created.append(event)
                 self.create_pointer += 1
             else:
@@ -163,8 +154,6 @@ class MidiNotesState:
                 unpressed.append(event)
         for event in unpressed:
             self.pressed_actions.remove(event)
-        self.current_tick = updated_tick
-        self.tick_into_notes = updated_into_notes
         for event in created:
             event.on_register()
         for event in pressed:
@@ -173,7 +162,7 @@ class MidiNotesState:
             event.on_release()
 
     def finished(self):
-        return self.current_tick > self.full_length
+        return self.dynamic.current_tick > (self.dynamic.duration_ticks + self.dynamic.ticks_after)
 
 
 
@@ -360,7 +349,7 @@ class MidiNotesDisplay:
 
         self.note_animation = NoteAnimationHandler(self.canvas, piano, dynamics)
         self.actions_factory = ActionFactory(self.note_animation, dynamics)
-        self.dynamics.current_tick = 0
+        self.dynamics.current_tick = -self.dynamics.ticks_before
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.dynamics.pixels_per_tick = self.canvas.winfo_height() / self.dynamics.ticks_lookahead
 
@@ -368,7 +357,7 @@ class MidiNotesDisplay:
     def load_notes(self, midi_file: MidiFile):
         duration_ticks = midi_file.metadata.duration_ticks
         action_list = self.actions_factory.create_all_actions(midi_file.events)
-        self.mini_notes_state = MidiNotesState(action_list, duration_ticks)
+        self.mini_notes_state = MidiNotesState(action_list, self.dynamics, duration_ticks)
         self.is_loaded.set()
         self.is_playing.clear()
         self.is_finished.clear()
@@ -390,7 +379,7 @@ class MidiNotesDisplay:
             return
         if self.is_playing.is_set():
             ticks_passed = MidiService.calculate_ticks(past_millis, self.dynamics)
-            self.mini_notes_state.move_time_forward(ticks_passed)
+            self.mini_notes_state.move_time_forward()
             self.note_animation.update(ticks_passed)
             if self.mini_notes_state.finished():
                 print("FINISH")
