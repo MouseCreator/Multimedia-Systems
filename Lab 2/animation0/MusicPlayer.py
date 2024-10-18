@@ -20,10 +20,21 @@ class MusicPlayer:
 
     def __init__(self):
         self.port = None
+        self.queue = []
     def start(self):
         self.port = mido.open_output()
+        self.queue = []
 
-    def play(self, source : PlayingMessage):
+    def _message_priority(self, message : PlayingMessage):
+        if isinstance(message, ProgramMessage):
+            return 0
+        elif isinstance(message, EndMessage):
+            return 1
+        elif isinstance(message, BeginMessage):
+            return 2
+        else:
+            return 3
+    def _play(self, source : PlayingMessage):
         if isinstance(source, BeginMessage):
             msg = mido.Message('note_on', note=source.note, velocity=source.velocity, channel=source.channel)
             self.port.send(msg)
@@ -35,6 +46,18 @@ class MusicPlayer:
             self.port.send(msg)
         else:
             raise Exception(f"Unknown message type: {source}")
+    def enqueue(self, message : PlayingMessage):
+        self.queue.append(message)
+    def play_queue(self):
+        sorted_queue = sorted(self.queue,key = self._message_priority)
+        for message in sorted_queue:
+            self._play(message)
+    def clear_queue(self):
+        self.queue.clear()
+    def play_and_clear(self):
+        self.play_queue()
+        self.clear_queue()
+
     def close(self):
         self.port.close()
 

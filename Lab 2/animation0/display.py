@@ -41,10 +41,10 @@ class SoundAction(MidiAction):
         self.animation_handler.on_register(self.sound_event)
     def on_press(self):
         self.animation_handler.on_press(self.sound_event)
-        self.music_player.play(BeginMessage(self.sound_event.note, self.sound_event.channel, self.sound_event.volume))
+        self.music_player.enqueue(BeginMessage(self.sound_event.note, self.sound_event.channel, self.sound_event.volume))
     def on_release(self):
         self.animation_handler.on_release(self.sound_event)
-        self.music_player.play(EndMessage(self.sound_event.note, self.sound_event.channel))
+        self.music_player.enqueue(EndMessage(self.sound_event.note, self.sound_event.channel))
     def begin_when(self):
         return self.sound_event.begin_when
     def end_when(self):
@@ -82,7 +82,7 @@ class ProgramAction(MidiAction):
         channel = self.program_event.channel
         program = self.program_event.program
         self.dynamics.channel_programs[channel] = program
-        self.music_player.play(ProgramMessage(program, channel))
+        self.music_player.enqueue(ProgramMessage(program, channel))
 class ActionFactory:
     def __init__(self, animation_handler, dynamics: DynamicMidiData, music_player : MusicPlayer):
         self.animation_handler = animation_handler
@@ -354,6 +354,7 @@ class MidiNotesDisplay:
         self.is_playing.clear()
         self.is_finished = threading.Event()
         self.is_finished.clear()
+        self.music_player = music_player
 
         self.note_animation = NoteAnimationHandler(self.canvas, piano, dynamics)
         self.actions_factory = ActionFactory(self.note_animation, dynamics, music_player)
@@ -389,6 +390,7 @@ class MidiNotesDisplay:
             ticks_passed = MidiService.calculate_ticks(past_millis, self.dynamics)
             self.mini_notes_state.move_time_forward()
             self.note_animation.update(ticks_passed)
+            self.music_player.play_and_clear()
             if self.mini_notes_state.finished():
                 print("FINISH")
                 self._finish()

@@ -91,11 +91,10 @@ class MidiMapper:
                 message_time = msg.time
                 current_time += message_time
 
-                if msg.type == 'note_on':
-                    if msg.velocity > 0:
+                if msg.type == 'note_on' and msg.velocity > 0:
                         note_on_events[(msg.note, msg.channel)] = (current_time, msg.velocity)
                         channels.add(MidiChannel(number=msg.channel))
-                elif msg.type == 'note_off':
+                elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
                     if (msg.note, msg.channel) in note_on_events:
                         begin_when, volume = note_on_events.pop((msg.note, msg.channel))
                         events.append(SoundEvent(

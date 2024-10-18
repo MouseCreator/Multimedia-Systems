@@ -10,7 +10,7 @@ from piano import PianoCreator88, PianoCreationParams, Piano
 from defines import *
 from size import SizeTracker
 
-
+FILE_TO_LOAD = "resource/audio/polkka.mid"
 class MidiPlayer:
 
     piano: Piano | None
@@ -41,7 +41,7 @@ class MidiPlayer:
     def setup_meta(self):
         self.music_player = MusicPlayer()
         self.music_player.start()
-        self.midi_file = self.load_midi("resource/audio/ghoul.mid")
+        self.midi_file = self.load_midi(FILE_TO_LOAD)
 
     def setup_layout(self):
 
@@ -69,7 +69,7 @@ class MidiPlayer:
                                    relwidth=DEFINES.REL_PIANO_WIDTH)
 
         self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano, self.dynamics, self.music_player)
-        mapped_file = MidiMapper.map_to_midi_file("resource/audio/ghoul.mid")
+        mapped_file = MidiMapper.map_to_midi_file(FILE_TO_LOAD)
         self.apply_metadata(mapped_file)
         self.notes_display.load_notes(mapped_file)
         self.notes_display.play()

@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List
 
-from MusicPlayer import MusicPlayer
 from dynamic import DynamicMidiData
 from midis import SoundEvent
 
