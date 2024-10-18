@@ -164,10 +164,11 @@ class MidiNotesState:
             self.pressed_actions.remove(event)
         for event in created:
             event.on_register()
-        for event in pressed:
-            event.on_press()
         for event in unpressed:
             event.on_release()
+        for event in pressed:
+            event.on_press()
+
 
     def finished(self):
         return self.dynamic.current_tick > (self.dynamic.duration_ticks + self.dynamic.ticks_after)

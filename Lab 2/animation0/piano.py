@@ -5,31 +5,40 @@ from typing import List
 
 from dynamic import DynamicMidiData
 from midis import SoundEvent
-
+import utils
 
 class GraphicKey:
 
-    def __init__(self, parent: tk.Canvas, color: str):
+    def __init__(self, parent: tk.Canvas, color: str, dynamic : DynamicMidiData):
         self.shape = parent.create_rectangle(0, 0, 40, 40, fill=color)
         self.parent = parent
         self.x = 0
         self.y = 0
         self.width = 0
         self.height = 0
-        self.color_stack = [color]
+        self.dynamics = dynamic
+        self.original_color = color
+        self.channel_stack = []
 
-    def press(self, apply_color):
-        self.color_stack.append(apply_color)
-        self.parent.itemconfig(self.shape, fill=apply_color)
+    def press(self, channel : int):
+        self.channel_stack.append(channel)
+        color = self.dynamics.channel_colors[channel]
+        self.parent.itemconfig(self.shape, fill=color)
         print("Key is pressed!")
 
-    def release(self, certain_color=None):
-        length = len(self.color_stack)
-        if certain_color is None:
-            self.color_stack.pop(length-1)
-        else:
-            self.color_stack.remove(certain_color)
-        new_color = self.color_stack[length-2]
+
+    def release(self, channel):
+        last_index = utils.last_index_of(self.channel_stack, channel)
+        if last_index == -1:
+            raise Exception(f"Cannot release channel with index {channel}")
+        self.channel_stack.pop(last_index)
+
+        last_index = len(self.channel_stack) - 1
+        if last_index == -1:
+            self.parent.itemconfig(self.shape, fill=self.original_color)
+            return
+        new_channel = self.channel_stack[last_index]
+        new_color = self.dynamics.channel_colors[new_channel]
         self.parent.itemconfig(self.shape, fill=new_color)
         print("Key is released!")
 
@@ -59,11 +68,11 @@ class PianoKey:
     def on_raise(self, canvas: tk.Canvas):
         canvas.tag_raise(self.visual.shape)
 
-    def on_press(self, note_to_play, color: str):
-        self.visual.press(color)
+    def on_press(self, channel: int):
+        self.visual.press(channel)
 
-    def on_release(self, note_to_release, color: str):
-        self.visual.release(color)
+    def on_release(self, channel: int):
+        self.visual.release(channel)
 
 
 class PianoParams:
@@ -123,14 +132,12 @@ class Piano:
     def press(self, note_to_play : SoundEvent):
         key_index = self.note_map.when_pressed(note_to_play.note)
         key = self.keys[key_index]
-        color = self.dynamic.channel_colors[note_to_play.channel]
-        key.on_press(note_to_play, color)
+        key.on_press(note_to_play.channel)
 
     def release(self, note_to_release : SoundEvent):
         key_index = self.note_map.when_pressed(note_to_release.note)
         key = self.keys[key_index]
-        color = self.dynamic.channel_colors[note_to_release.channel]
-        key.on_release(note_to_release, color)
+        key.on_release(note_to_release.channel)
     def key_id_of(self, target_note : SoundEvent) -> PianoKey:
         key_index = self.note_map.when_pressed(target_note.note)
         return self.keys[key_index]
@@ -206,10 +213,16 @@ class PianoCreator88(PianoCreator):
     @staticmethod
     def create_note_map() -> NotesMap:
         notes_map = NotesMap()
-
-        for i in range(0, 128):
-            notes_map.put(i, i % 88)
-
+        beginning_maps_to = [1,2,3,4,5,6,7,8,9,10,11,0]
+        beginning_len = len(beginning_maps_to)
+        for i in range(0, 21):
+            notes_map.put(i, beginning_maps_to[i % beginning_len])
+        for i in range(21, 109):
+            notes_map.put(i, i - 21)
+        ending_maps_to = [96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108]
+        ending_len = len(ending_maps_to)
+        for i in range(109, 128):
+            notes_map.put(i, ending_maps_to[i % ending_len])
         return notes_map
 
     def create_piano(self, dynamic : DynamicMidiData,
@@ -228,10 +241,10 @@ class PianoCreator88(PianoCreator):
             color = prototype_key.color
             if color == "white":
                 normalized_position = position_pointer
-                visual = GraphicKey(canvas, "white")
+                visual = GraphicKey(canvas, "white", dynamic)
             else:
                 normalized_position = position_pointer - 0.25
-                visual = GraphicKey(canvas, "black")
+                visual = GraphicKey(canvas, "black", dynamic)
             notes = []
             actual_key = PianoKey(index, visual, color, normalized_position, notes)
             actual_key.visual.apply_graphics(gparams)
