@@ -81,7 +81,6 @@ class MidiMapper:
         tracks = []
         channels = set()
         duration_ticks = 0
-        track_name = ""
         ids = 0
         for i, track in enumerate(midi.tracks):
             tracks.append(MidiTrack(number=i, origin=track.name if hasattr(track, 'name') else 'Unknown'))
@@ -115,17 +114,13 @@ class MidiMapper:
                     begin_when = current_time
                     events.append(ProgramChangeEvent(ids, begin_when, msg.channel, msg.program))
                     ids += 1
-                elif msg.type == 'track_name':
-                    track_name = msg.name
-                elif msg.type == 'time_signature':
-                    print(msg)
-                elif msg.type == 'key_signature':
-                    print(msg)
-                elif msg.type == 'control_change':
-                    print(msg)
-                elif msg.type == 'midi_port':
-                    print(msg)
-                elif msg.type == 'end_of_track':
+                elif msg.type in ['track_name',
+                                  'time_signature',
+                                  'key_signature',
+                                  'control_change',
+                                  'midi_port',
+                                  'end_of_track',
+                                  'pitchwheel']:
                     print(msg)
                 else:
                     raise Exception(f"UNKNOWN MESSAGE TYPE: {msg.type}")

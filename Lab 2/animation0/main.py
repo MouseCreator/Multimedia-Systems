@@ -10,7 +10,7 @@ from piano import PianoCreator88, PianoCreationParams, Piano
 from defines import *
 from size import SizeTracker
 
-FILE_TO_LOAD = "resource/audio/polkka.mid"
+FILE_TO_LOAD = "resource/audio/ghoul.mid"
 class MidiPlayer:
 
     piano: Piano | None
