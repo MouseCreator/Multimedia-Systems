@@ -38,7 +38,8 @@ class MusicPlayer:
                 break
             priority += 1
         return priority
-
+    def reset(self):
+        self.port.reset()
     def _play(self, source : PlayingMessage):
         if isinstance(source, BeginMessage):
             msg = mido.Message('note_on', note=source.note, velocity=source.velocity, channel=source.channel)

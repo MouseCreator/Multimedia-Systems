@@ -1,8 +1,16 @@
 from typing import List
+
+class Defaults:
+    @staticmethod
+    def channel_count():
+        return 16
+    @staticmethod
+    def tempo():
+        return 500000
 class DynamicMidiData:
     def __init__(self,
                  current_tick: int = 0,
-                 tempo: int = 500000,
+                 tempo: int = Defaults.tempo(),
                  ticks_per_beat: int = 48,
                  pixels_per_tick: int = 0.65,
                  ticks_lookahead: int = 800,
@@ -19,7 +27,7 @@ class DynamicMidiData:
                                'red', 'blue', 'violet', 'cyan',
                                'red', 'blue', 'violet', 'cyan',
                                'red', 'blue', 'violet', 'cyan'] if channel_colors is None else channel_colors
-        self.channel_programs = [0] * 16 if channel_colors is None else channel_programs
+        self.channel_programs = [0] * Defaults.channel_count() if channel_colors is None else channel_programs
         self.duration_ticks = duration_ticks
         self.ticks_before = 0
         self.ticks_after = 1000

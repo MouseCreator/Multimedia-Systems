@@ -10,7 +10,7 @@ from piano import PianoCreator88, PianoCreationParams, Piano
 from defines import *
 from size import SizeTracker
 
-FILE_TO_LOAD = "resource/audio/ghoul.mid"
+FILE_TO_LOAD = "resource/audio/polkka.mid"
 class MidiPlayer:
 
     piano: Piano | None
@@ -78,6 +78,7 @@ class MidiPlayer:
         self.size_tracker.resize_to(DEFINES.DEFAULT_WINDOW_WIDTH, DEFINES.DEFAULT_WINDOW_HEIGHT)
 
         self.notes_display.load_notes(mapped_file)
+        self.notes_display.set_time(8000)
         self.notes_display.play()
         self.engine.register(self.notes_display.update)
         self.engine.start()

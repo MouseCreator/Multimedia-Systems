@@ -41,6 +41,9 @@ class GraphicKey:
         new_color = self.dynamics.channel_colors[new_channel]
         self.parent.itemconfig(self.shape, fill=new_color)
         print("Key is released!")
+    def to_original_color(self):
+        self.channel_stack.clear()
+        self.parent.itemconfig(self.shape, fill=self.original_color)
 
     def resize(self, width, height):
         self.width = width
@@ -73,6 +76,9 @@ class PianoKey:
 
     def on_release(self, channel: int):
         self.visual.release(channel)
+
+    def to_initial_state(self):
+        self.visual.to_original_color()
 
 
 class PianoParams:
@@ -142,6 +148,9 @@ class Piano:
         key_index = self.note_map.when_pressed(target_note.note)
         return self.keys[key_index]
 
+    def release_all(self):
+        for key in self.keys:
+            key.to_initial_state()
 
 
 class KeyboardParams:
