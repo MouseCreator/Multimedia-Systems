@@ -40,6 +40,16 @@ class ProgramChangeEvent(MidiEvent):
     def event_type(self):
         return "program"
 
+class ControlChangeEvent(MidiEvent):
+    def __init__(self, identity:int, begin_when: int, channel: int, control: int, value : int):
+        self.identity = identity
+        self.begin_when = begin_when
+        self.control = control
+        self.channel = channel
+        self.value = value
+    def event_type(self):
+        return "control"
+
 class MidiTrack:
     def __init__(self, number, origin):
         self.number = number
@@ -113,6 +123,10 @@ class MidiMapper:
                 elif msg.type == 'program_change':
                     begin_when = current_time
                     events.append(ProgramChangeEvent(ids, begin_when, msg.channel, msg.program))
+                    ids += 1
+                elif msg.type == 'control_change':
+                    begin_when = current_time
+                    events.append(ControlChangeEvent(ids, begin_when, msg.channel, msg.control, msg.value))
                     ids += 1
                 elif msg.type in ['track_name',
                                   'time_signature',

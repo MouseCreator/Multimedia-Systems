@@ -15,6 +15,11 @@ class ProgramMessage(PlayingMessage):
     def __init__(self, program_number, channel):
         self.program_number = program_number
         self.channel = channel
+class ControlMessage(PlayingMessage):
+    def __init__(self, control, value, channel):
+        self.control = control
+        self.channel = channel
+        self.value = value
 
 class MusicPlayer:
 
@@ -26,14 +31,14 @@ class MusicPlayer:
         self.queue = []
 
     def _message_priority(self, message : PlayingMessage):
-        if isinstance(message, ProgramMessage):
-            return 0
-        elif isinstance(message, EndMessage):
-            return 1
-        elif isinstance(message, BeginMessage):
-            return 2
-        else:
-            return 3
+        priority = 0
+        priority_list = [ProgramMessage, ControlMessage, EndMessage, BeginMessage]
+        for p in priority_list:
+            if isinstance(message, p):
+                break
+            priority += 1
+        return priority
+
     def _play(self, source : PlayingMessage):
         if isinstance(source, BeginMessage):
             msg = mido.Message('note_on', note=source.note, velocity=source.velocity, channel=source.channel)
@@ -43,6 +48,9 @@ class MusicPlayer:
             self.port.send(msg)
         elif isinstance(source, ProgramMessage):
             msg = mido.Message('program_change', program=source.program_number, channel=source.channel)
+            self.port.send(msg)
+        elif isinstance(source, ControlMessage):
+            msg = mido.Message('control_change', control=source.control, channel=source.channel, time=0, value=source.value)
             self.port.send(msg)
         else:
             raise Exception(f"Unknown message type: {source}")

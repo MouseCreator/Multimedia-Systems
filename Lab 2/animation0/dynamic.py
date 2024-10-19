@@ -15,7 +15,10 @@ class DynamicMidiData:
         self.ticks_per_beat = ticks_per_beat
         self.ticks_lookahead = ticks_lookahead
         self.pixels_per_tick = pixels_per_tick
-        self.channel_colors = ['red', 'blue', 'violet', 'white', 'red', 'blue', 'violet', 'white', 'red', 'blue', 'violet', 'white', 'red', 'blue', 'violet', 'white'] if channel_colors is None else channel_colors
+        self.channel_colors = ['red', 'blue', 'violet', 'cyan',
+                               'red', 'blue', 'violet', 'cyan',
+                               'red', 'blue', 'violet', 'cyan',
+                               'red', 'blue', 'violet', 'cyan'] if channel_colors is None else channel_colors
         self.channel_programs = [0] * 16 if channel_colors is None else channel_programs
         self.duration_ticks = duration_ticks
         self.ticks_before = 0

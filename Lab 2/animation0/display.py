@@ -1,7 +1,7 @@
 import tkinter as tk
 
-from MusicPlayer import MusicPlayer, ProgramMessage, BeginMessage, EndMessage
-from midis import MidiFile, MidiEvent, SoundEvent, ProgramChangeEvent, TempoEvent
+from MusicPlayer import MusicPlayer, ProgramMessage, BeginMessage, EndMessage, ControlMessage
+from midis import MidiFile, MidiEvent, SoundEvent, ProgramChangeEvent, TempoEvent, ControlChangeEvent
 import threading
 from typing import List, Dict
 from abc import ABC, abstractmethod
@@ -83,6 +83,23 @@ class ProgramAction(MidiAction):
         program = self.program_event.program
         self.dynamics.channel_programs[channel] = program
         self.music_player.enqueue(ProgramMessage(program, channel))
+
+class ControlAction(MidiAction):
+    def begin_when(self):
+        return self.control_event.begin_when
+
+    def end_when(self):
+        return self.control_event.begin_when
+
+    def __init__(self, control_event: ControlChangeEvent, music_player : MusicPlayer):
+        self.control_event = control_event
+        self.music_player = music_player
+
+    def on_press(self):
+        channel = self.control_event.channel
+        control = self.control_event.control
+        value = self.control_event.value
+        self.music_player.enqueue(ControlMessage(control, value, channel))
 class ActionFactory:
     def __init__(self, animation_handler, dynamics: DynamicMidiData, music_player : MusicPlayer):
         self.animation_handler = animation_handler
@@ -96,6 +113,8 @@ class ActionFactory:
             return self._create_program_action(event)
         elif isinstance(event, TempoEvent):
             return self._create_tempo_action(event)
+        elif isinstance(event, ControlChangeEvent):
+            return self._create_control_action(event)
         else:
             raise Exception(f"Unknown event to convert: {event}")
 
@@ -104,7 +123,8 @@ class ActionFactory:
 
     def _create_program_action(self, program_change_event : ProgramChangeEvent) -> ProgramAction:
         return ProgramAction(program_change_event, self.dynamics, self.music_player)
-
+    def _create_control_action(self, control_change_event : ControlChangeEvent) -> ControlAction:
+        return ControlAction(control_change_event, self.music_player)
     def _create_tempo_action(self, event: TempoEvent) -> TempoAction:
         return TempoAction(event, self.dynamics)
 
@@ -343,7 +363,6 @@ class NoteAnimationHandler:
 
 
 class MidiNotesDisplay:
-    # TODO: FOR AUDIO OUTPUT ADD ASSOCIATED EVENTS (origins)
     def __init__(self, root : tk.Frame, piano : Piano, dynamics: DynamicMidiData, music_player : MusicPlayer):
         self.root = root
         self.dynamics = dynamics
