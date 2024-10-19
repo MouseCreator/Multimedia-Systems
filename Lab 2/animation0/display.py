@@ -249,12 +249,14 @@ class SlidingNote:
         self.canvas.move(self.shape, by_x, by_y)
 
 
+
 class SlidingNotes:
     active_notes: List[SlidingNote]
     def __init__(self, dynamics: DynamicMidiData, piano: Piano):
         self.dynamics = dynamics
         self.piano = piano
         self.active_notes = []
+        self.static_count = 0
 
     def include(self, sliding_note : SlidingNote):
         self.active_notes.append(sliding_note)
@@ -291,10 +293,19 @@ class SlidingNotes:
 
     def adjust_position(self, sliding_note: SlidingNote):
         current_tick = self.dynamics.current_tick
+        lookahead = self.dynamics.ticks_lookahead
         note_created = sliding_note.created_tick
-        note_alive = current_tick - note_created
-        note_full = sliding_note.end_tick - sliding_note.press_tick
-        size_def = min(note_alive, note_full)
+        if self.static_count > 30:
+            print("catch")
+        tick_note_fully_entered = sliding_note.end_tick - lookahead
+        note_ticks_top = max(0, current_tick - tick_note_fully_entered)
+        self.static_count+=1
+
+
+        note_ticks_bottom = lookahead
+        if sliding_note.press_tick > current_tick:
+            note_ticks_bottom = (current_tick - note_created)
+        height_ticks = note_ticks_bottom - note_ticks_top
         white_width = self.piano.dynamic_gfx.white_width
         black_width = self.piano.dynamic_gfx.black_width
         color = sliding_note.key_color
@@ -302,12 +313,12 @@ class SlidingNotes:
         pixels_per_tick = self.dynamics.pixels_per_tick
         if color == "white":
             new_x = key.normalized_position * white_width
-            sliding_note.move_to(new_x, note_alive * pixels_per_tick)
-            sliding_note.resize(white_width, size_def * pixels_per_tick)
+            sliding_note.move_to(new_x, note_ticks_top * pixels_per_tick)
+            sliding_note.resize(white_width, height_ticks * pixels_per_tick)
         else:
             new_x = key.normalized_position * white_width
-            sliding_note.move_to(new_x, note_alive * pixels_per_tick)
-            sliding_note.resize(black_width, size_def * pixels_per_tick)
+            sliding_note.move_to(new_x, note_ticks_top * pixels_per_tick)
+            sliding_note.resize(black_width, height_ticks * pixels_per_tick)
 
     def when_resized(self):
         for note in self.active_notes:

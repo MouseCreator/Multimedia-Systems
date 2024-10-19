@@ -71,13 +71,15 @@ class MidiPlayer:
         self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano, self.dynamics, self.music_player)
         mapped_file = MidiMapper.map_to_midi_file(FILE_TO_LOAD)
         self.apply_metadata(mapped_file)
-        self.notes_display.load_notes(mapped_file)
-        self.notes_display.play()
-        self.engine.register(self.notes_display.update)
+
         self.size_tracker = SizeTracker(self.root)
         self.size_tracker.register(self.on_resize)
         self.size_tracker.bind_config()
         self.size_tracker.resize_to(DEFINES.DEFAULT_WINDOW_WIDTH, DEFINES.DEFAULT_WINDOW_HEIGHT)
+
+        self.notes_display.load_notes(mapped_file)
+        self.notes_display.play()
+        self.engine.register(self.notes_display.update)
         self.engine.start()
 
     def main_loop(self):

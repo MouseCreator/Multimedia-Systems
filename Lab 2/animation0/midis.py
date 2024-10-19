@@ -131,7 +131,6 @@ class MidiMapper:
                 elif msg.type in ['track_name',
                                   'time_signature',
                                   'key_signature',
-                                  'control_change',
                                   'midi_port',
                                   'end_of_track',
                                   'pitchwheel']:
