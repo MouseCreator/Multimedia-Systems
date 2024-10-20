@@ -5,6 +5,7 @@ from MusicPlayer import MusicPlayer
 from display import MidiNotesDisplay
 from dynamic import DynamicMidiData
 from engine import Engine
+from global_controls import GlobalControls
 from midis import MidiMapper
 from piano import PianoCreator88, PianoCreationParams, Piano
 from defines import *
@@ -18,6 +19,7 @@ class MidiPlayer:
     size_tracker: SizeTracker | None
     engine: Engine | None
     music_player: MusicPlayer | None
+    global_controls : GlobalControls
 
     def __init__(self):
         self.root = tk.Tk()
@@ -33,6 +35,7 @@ class MidiPlayer:
         self.size_tracker = None
         self.notes_display = None
         self.music_player = None
+        self.global_controls = None
 
     def on_resize(self, width, height):
         self.piano.resize(width*DEFINES.REL_PIANO_WIDTH, height*DEFINES.REL_PIANO_HEIGHT)
@@ -67,8 +70,13 @@ class MidiPlayer:
         self.midi_notes_pane.place(relx=DEFINES.REL_SIDEBAR_WIDTH,
                                    relheight=DEFINES.REL_MIDI_PLAYER_HEIGHT,
                                    relwidth=DEFINES.REL_PIANO_WIDTH)
-
-        self.notes_display = MidiNotesDisplay(self.midi_notes_pane, self.piano, self.dynamics, self.music_player)
+        self.global_controls = GlobalControls()
+        self.notes_display = MidiNotesDisplay(
+            self.midi_notes_pane,
+            self.piano,
+            self.dynamics,
+            self.music_player,
+            self.global_controls)
         mapped_file = MidiMapper.map_to_midi_file(FILE_TO_LOAD)
         self.apply_metadata(mapped_file)
 

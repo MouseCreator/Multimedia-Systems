@@ -1,13 +1,13 @@
 import tkinter as tk
 
-from MusicPlayer import MusicPlayer, ProgramMessage, BeginMessage, EndMessage, ControlMessage
-from message_navigator import MidiNavigator, MidiNavigatorOutput
-from midis import MidiFile, MidiEvent, SoundEvent, ProgramChangeEvent, TempoEvent, ControlChangeEvent
-import threading
+from actions import MidiAction, ActionFactory
+from MusicPlayer import MusicPlayer
+from global_controls import GlobalControls
+from message_navigator import CachingMidiNavigator
+from midis import MidiFile, SoundEvent
 from typing import List, Dict
-from abc import ABC, abstractmethod
 from piano import Piano, PianoKey
-from dynamic import DynamicMidiData, Defaults
+from dynamic import DynamicMidiData
 
 class MidiService:
     @staticmethod
@@ -15,202 +15,47 @@ class MidiService:
         tempo_in_ms = dynamic.current_tempo / 1000
         return round((dynamic.ticks_per_beat * delta_time_ms) / tempo_in_ms)
 
-class MidiAction(ABC):
-    @abstractmethod
-    def begin_when(self):
-        pass
-    @abstractmethod
-    def end_when(self):
-        pass
-    @abstractmethod
-    def created_by_id(self):
-        pass
-
-    def on_register(self):
-        pass
-
-    def on_press(self):
-        pass
-
-    def on_forced_register(self):
-        self.on_register()
-
-    def on_forced_press(self):
-        self.on_press()
-
-    def on_release(self):
-        pass
-
-class SoundAction(MidiAction):
-
-    def __init__(self, sound_event: SoundEvent, animation_handler, music_player : MusicPlayer):
-        self.sound_event = sound_event
-        self.animation_handler = animation_handler
-        self.music_player = music_player
-    def on_register(self):
-        self.animation_handler.on_register(self.sound_event)
-    def on_press(self):
-        self.animation_handler.on_press(self.sound_event)
-        self.music_player.enqueue(BeginMessage(self.sound_event.note, self.sound_event.channel, self.sound_event.volume))
-    def on_release(self):
-        self.animation_handler.on_release(self.sound_event)
-        self.music_player.enqueue(EndMessage(self.sound_event.note, self.sound_event.channel))
-    def begin_when(self):
-        return self.sound_event.begin_when
-    def end_when(self):
-        return self.sound_event.end_when
-    def created_by_id(self):
-        return self.sound_event.identity
-    def on_forced_register(self):
-        self.animation_handler.on_register(self.sound_event)
-    def on_forced_press(self):
-        self.animation_handler.on_press(self.sound_event)
-
-class TempoAction(MidiAction):
-
-    def created_by_id(self):
-        return self.tempo_event.identity
-
-    def begin_when(self):
-        return self.tempo_event.begin_when
-
-    def end_when(self):
-        return self.tempo_event.begin_when
-
-    def __init__(self, tempo_event: TempoEvent, dynamics: DynamicMidiData):
-        self.tempo_event = tempo_event
-        self.dynamics = dynamics
-
-
-    def on_press(self):
-        self.dynamics.current_tempo = self.tempo_event.tempo
-
-class ProgramAction(MidiAction):
-    def created_by_id(self):
-        return self.program_event.identity
-
-    def begin_when(self):
-        return self.program_event.begin_when
-
-    def end_when(self):
-        return self.program_event.begin_when
-
-    def __init__(self, event: ProgramChangeEvent, dynamics: DynamicMidiData, music_player : MusicPlayer):
-        self.program_event = event
-        self.dynamics = dynamics
-        self.music_player = music_player
-
-    def on_press(self):
-        channel = self.program_event.channel
-        program = self.program_event.program
-        self.dynamics.channel_programs[channel] = program
-        self.music_player.enqueue(ProgramMessage(program, channel))
-
-class ControlAction(MidiAction):
-    def created_by_id(self):
-        return self.control_event.identity
-
-    def begin_when(self):
-        return self.control_event.begin_when
-
-    def end_when(self):
-        return self.control_event.begin_when
-
-    def __init__(self, control_event: ControlChangeEvent, music_player : MusicPlayer):
-        self.control_event = control_event
-        self.music_player = music_player
-
-    def on_press(self):
-        channel = self.control_event.channel
-        control = self.control_event.control
-        value = self.control_event.value
-        self.music_player.enqueue(ControlMessage(control, value, channel))
-class ActionFactory:
-    def __init__(self, animation_handler, dynamics: DynamicMidiData, music_player : MusicPlayer):
-        self.animation_handler = animation_handler
-        self.dynamics = dynamics
-        self.music_player = music_player
-
-    def create_action(self, event: MidiEvent) -> MidiAction:
-        if isinstance(event, SoundEvent):
-            return self._create_sound_action(event)
-        elif isinstance(event, ProgramChangeEvent):
-            return self._create_program_action(event)
-        elif isinstance(event, TempoEvent):
-            return self._create_tempo_action(event)
-        elif isinstance(event, ControlChangeEvent):
-            return self._create_control_action(event)
-        else:
-            raise Exception(f"Unknown event to convert: {event}")
-
-    def _create_sound_action(self, sound_event: SoundEvent) -> SoundAction:
-        return SoundAction(sound_event, self.animation_handler, self.music_player)
-
-    def _create_program_action(self, program_change_event : ProgramChangeEvent) -> ProgramAction:
-        return ProgramAction(program_change_event, self.dynamics, self.music_player)
-    def _create_control_action(self, control_change_event : ControlChangeEvent) -> ControlAction:
-        return ControlAction(control_change_event, self.music_player)
-    def _create_tempo_action(self, event: TempoEvent) -> TempoAction:
-        return TempoAction(event, self.dynamics)
-
-    def create_all_actions(self, events : List[MidiEvent]) -> List[MidiAction]:
-        actions = []
-        for event in events:
-            action = self.create_action(event)
-            actions.append(action)
-        return actions
 
 class MidiNotesState:
 
     actions: List[MidiAction]
     dynamic: DynamicMidiData
-    def __init__(self, actions: List[MidiAction], dynamic: DynamicMidiData):
-        self.actions = actions
+    def __init__(self, dynamic: DynamicMidiData):
         self.dynamic = dynamic
-        self.pointer_limit = len(actions)
+        self.pointer_limit = 0
         self.create_pointer = 0
         self.slide_pointer = 0
-        self.press_pointer = 0
         self.pressed_actions = []
         self.reset_time()
+        self.actions = []
+        self.navigator = CachingMidiNavigator(dynamic)
 
     def reset_time(self):
         self.create_pointer = 0
         self.slide_pointer = 0
-        self.press_pointer = 0
         self.pressed_actions.clear()
 
-    def set_time(self, time_to_set):
-        updated_into_notes = time_to_set
+    def on_load(self, actions : List[MidiAction]):
         self.reset_time()
-        created = {}
-        while self.create_pointer < self.pointer_limit:
-            event = self.actions[self.create_pointer]
-            if updated_into_notes + self.dynamic.ticks_lookahead >= event.begin_when():
-                created[event.created_by_id()] = event
-                self.create_pointer += 1
-            else:
-                break
-        pressed = {}
-        while self.slide_pointer < self.pointer_limit:
-            event = self.actions[self.slide_pointer]
-            if updated_into_notes >= event.begin_when():
-                pressed[event.created_by_id()] = event
-                self.slide_pointer += 1
-            else:
-                break
-        to_pop = []
-        for event in pressed.values():
-            if updated_into_notes >= event.end_when():
-                to_pop.append(event.created_by_id())
+        self.actions = list(actions)
+        self.pointer_limit = len(actions)
+        self.navigator.on_load_file(actions)
 
-        for key in to_pop:
-            pressed.pop(key)
+    def on_unload(self):
+        self.reset_time()
+        self.actions = []
+        self.pointer_limit = 0
+        self.navigator.on_unload_file()
 
-        for event in list(created.values()):
+    def set_time(self, time_to_set):
+        nav_state = self.navigator.set_time_to(time_to_set)
+        self.slide_pointer = nav_state.pressed_pointer
+        self.create_pointer = nav_state.created_pointer
+        self.pressed_actions = list(nav_state.pressed_list)
+        for event in nav_state.created_list:
             event.on_forced_register()
-        for event in list(pressed.values()):
-            self.pressed_actions.append(event)
+        for event in self.pressed_actions:
+            event.on_forced_register()
             event.on_forced_press()
 
 
@@ -270,6 +115,7 @@ class SlidingNote:
         self.channel_id = channel_id
         self.end_tick = end_tick
         self.key_color = 'white'
+        self.color = 'white'
         self.shape = self.canvas.create_rectangle(0, 0, 0, 0, fill=self.key_color)
         self.pos_x = 0
         self.pos_y = 0
@@ -435,22 +281,20 @@ class NoteAnimationHandler:
 
 
 class MidiNotesDisplay:
-    mini_notes_state : None | MidiNotesState
-    def __init__(self, root : tk.Frame, piano : Piano, dynamics: DynamicMidiData, music_player : MusicPlayer):
+    midi_notes_state : None | MidiNotesState
+    def __init__(self,
+                 root : tk.Frame,
+                 piano : Piano,
+                 dynamics: DynamicMidiData,
+                 music_player : MusicPlayer,
+                 global_control : GlobalControls):
         self.root = root
         self.dynamics = dynamics
         self.canvas = tk.Canvas(root, bg='gray')
-        self.mini_notes_state = None
-        self.is_loaded = threading.Event()
-        self.is_loaded.clear()
-        self.is_playing = threading.Event()
-        self.is_playing.clear()
-        self.is_finished = threading.Event()
-        self.is_finished.clear()
+        self.midi_notes_state = MidiNotesState(dynamics)
         self.music_player = music_player
-
+        self.global_control = global_control
         self.note_animation = NoteAnimationHandler(self.canvas, piano, dynamics)
-        self.navigator = MidiNavigator(self.dynamics)
         self.actions_factory = ActionFactory(self.note_animation, dynamics, music_player)
         self.dynamics.current_tick = -self.dynamics.ticks_before
         self.canvas.pack(fill=tk.BOTH, expand=True)
@@ -459,17 +303,16 @@ class MidiNotesDisplay:
 
     def load_notes(self, midi_file: MidiFile):
         action_list = self.actions_factory.create_all_actions(midi_file.events)
-        self.mini_notes_state = MidiNotesState(action_list, self.dynamics)
-        self.navigator.load(midi_file)
-        self.is_loaded.set()
-        self.is_playing.clear()
-        self.is_finished.clear()
+        self.midi_notes_state.on_load(action_list)
+        self.global_control.is_loaded.set()
+        self.global_control.is_playing.clear()
+        self.global_control.is_finished.clear()
 
     def clear_notes(self):
-        self.is_loaded.clear()
-        self.is_playing.clear()
-        self.is_finished.clear()
-        self.mini_notes_state = None
+        self.global_control.is_loaded.clear()
+        self.global_control.is_playing.clear()
+        self.global_control.is_finished.clear()
+        self.midi_notes_state.on_unload()
 
     def on_resize(self, width, height):
         self.canvas.place(width=width, height=height)
@@ -477,53 +320,40 @@ class MidiNotesDisplay:
         self.note_animation.when_resized()
 
     def update(self, past_millis):
-        if not self.is_loaded.is_set():
+        if not self.global_control.is_loaded.is_set():
             print("NOT LOADED")
             return
-        if self.is_playing.is_set():
+        if self.global_control.is_playing.is_set():
             ticks_passed = MidiService.calculate_ticks(past_millis, self.dynamics)
-            self.mini_notes_state.move_time_forward()
+            self.midi_notes_state.move_time_forward()
             self.note_animation.update(ticks_passed)
             self.music_player.play_and_clear()
-            if self.mini_notes_state.finished():
+            if self.midi_notes_state.finished():
                 print("FINISH")
                 self._finish()
             self.dynamics.current_tick = self.dynamics.current_tick + ticks_passed
 
     def _finish(self):
-        self.is_finished.set()
+        self.global_control.is_finished.set()
         self.stop()
 
     def play(self):
-        if not self.is_loaded.is_set():
+        if not self.global_control.is_loaded.is_set():
             return
-        if self.is_finished.is_set():
+        if self.global_control.is_finished.is_set():
             return
-        self.is_playing.set()
+        self.global_control.is_playing.set()
 
     def set_time(self, new_tick):
-        if self.is_playing.is_set():
+        if self.global_control.is_playing.is_set():
             return
         self.music_player.reset()
-        loading_result = self.navigator.load_from_timestamp(new_tick)
-        self._process_new_timestamp(loading_result)
-    def _process_new_timestamp(self, output : MidiNavigatorOutput):
 
-        fired = output.fired_controls
-
-        self.dynamics.channel_programs = [0] * Defaults.channel_count()
-        self.dynamics.current_tempo = Defaults.tempo()
-        self.dynamics.current_tick = output.current_tick
-
-        for event in fired:
-            action = self.actions_factory.create_action(event)
-            action.on_forced_press()
-        self.mini_notes_state.set_time(output.current_tick)
-
-
+        self.dynamics.current_tick = new_tick
+        self.midi_notes_state.set_time(new_tick)
 
 
     def stop(self):
-        if not self.is_loaded.is_set():
+        if not self.global_control.is_loaded.is_set():
             return
-        self.is_playing.clear()
+        self.global_control.is_playing.clear()
