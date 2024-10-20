@@ -19,7 +19,7 @@ class MidiPlayer:
     size_tracker: SizeTracker | None
     engine: Engine | None
     music_player: MusicPlayer | None
-    global_controls : GlobalControls
+    global_controls : GlobalControls | None
 
     def __init__(self):
         self.root = tk.Tk()
@@ -38,8 +38,8 @@ class MidiPlayer:
         self.global_controls = None
 
     def on_resize(self, width, height):
-        self.piano.resize(width*DEFINES.REL_PIANO_WIDTH, height*DEFINES.REL_PIANO_HEIGHT)
-        self.notes_display.on_resize(width*DEFINES.REL_PIANO_WIDTH, height*DEFINES.REL_MIDI_PLAYER_HEIGHT)
+        self.piano.resize(width-DEFINES.ABS_SIDEBAR_WIDTH, height*DEFINES.REL_PIANO_HEIGHT)
+        self.notes_display.on_resize(width-DEFINES.ABS_SIDEBAR_WIDTH, height*DEFINES.REL_MIDI_PLAYER_HEIGHT)
 
     def setup_meta(self):
         self.music_player = MusicPlayer()
@@ -58,18 +58,18 @@ class MidiPlayer:
         self.main_bar.place(relwidth=1, y=DEFINES.MENU_HEIGHT_PX, relheight=1)
         self.piano_pane = tk.Frame(self.main_bar, bg='red')
         self.side_pane = tk.Frame(self.main_bar, bg='green')
-        self.side_pane.place(relwidth=DEFINES.REL_SIDEBAR_WIDTH, relheight=1)
-        self.piano_pane.place(relx=DEFINES.REL_SIDEBAR_WIDTH,
+        self.side_pane.place(width=DEFINES.ABS_SIDEBAR_WIDTH, relheight=1)
+        self.piano_pane.place(x=DEFINES.ABS_SIDEBAR_WIDTH,
                               rely=DEFINES.REL_MIDI_PLAYER_HEIGHT,
-                              relwidth=DEFINES.REL_PIANO_WIDTH,
+                              relwidth=1,
                               relheight=DEFINES.REL_PIANO_HEIGHT)
         initial_piano = PianoCreationParams(self.piano_pane, DEFINES.DEFAULT_PIANO_WIDTH, DEFINES.DEFAULT_PIANO_HEIGHT)
         self.piano = creator.create_piano(self.dynamics, initial_piano)
         self.engine = Engine(self.root)
         self.midi_notes_pane = tk.Frame(self.main_bar, bg='gray')
-        self.midi_notes_pane.place(relx=DEFINES.REL_SIDEBAR_WIDTH,
+        self.midi_notes_pane.place(x=DEFINES.ABS_SIDEBAR_WIDTH,
                                    relheight=DEFINES.REL_MIDI_PLAYER_HEIGHT,
-                                   relwidth=DEFINES.REL_PIANO_WIDTH)
+                                   relwidth=1)
         self.global_controls = GlobalControls()
         self.notes_display = MidiNotesDisplay(
             self.midi_notes_pane,
