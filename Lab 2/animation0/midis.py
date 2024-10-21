@@ -133,10 +133,12 @@ class MidiMapper:
                                   'key_signature',
                                   'midi_port',
                                   'end_of_track',
-                                  'pitchwheel']:
+                                  'pitchwheel',
+                                  'channel_prefix', 'sysex', 'text']:
                     pass # skip meta messages
                 else:
-                    raise Exception(f"UNKNOWN MESSAGE TYPE: {msg.type}")
+                    #raise Exception(f"UNKNOWN MESSAGE TYPE: {msg.type}")
+                    pass
             if current_time > duration_ticks:
                 duration_ticks = current_time
 

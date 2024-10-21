@@ -37,7 +37,11 @@ class UnloadFile(Message):
 class UpdateSideBar(Message):
     def topic(self):
         return "sidebar"
-
+class ControlMessage(Message):
+    def topic(self) -> str:
+        return "control"
+    def __init__(self, action : str):
+        self.action = action
 class ResetOnUnload(Message):
     def topic(self) -> str:
         return "reset_on_unload"

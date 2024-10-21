@@ -5,7 +5,7 @@ from MusicPlayer import MusicPlayer
 from global_controls import GlobalControls
 from message_navigator import CachingMidiNavigator
 from message_passing import MessagePassing, TickMessage, FinishTrackMessage, LengthMessage, ChannelColorMessage, \
-    LoadFile, UpdateSideBar, ResetOnUnload
+    LoadFile, UpdateSideBar, ResetOnUnload, ControlMessage
 from midis import MidiFile, SoundEvent, MidiMapper
 from typing import List, Dict
 from piano import Piano, PianoKey
@@ -93,10 +93,11 @@ class MidiNotesState:
             self.pressed_actions.remove(event)
         for event in created:
             event.on_register()
-        for event in unpressed:
-            event.on_release()
         for event in pressed:
             event.on_press()
+        for event in unpressed:
+            event.on_release()
+
 
 
     def finished(self):
@@ -362,6 +363,11 @@ class MidiNotesDisplay:
             self.load_file(file)
         if not self.global_control.is_loaded.is_set():
             return
+
+        pause_message = self.message_passing.pop_message("control")
+        if pause_message is not None and isinstance(pause_message, ControlMessage):
+            if pause_message.action == "pause":
+                self.music_player.reset()
         tick_message = self.message_passing.pop_message("tick")
         if tick_message is not None and isinstance(tick_message, TickMessage):
             self.set_time(tick_message.tick)

@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List
@@ -9,11 +8,12 @@ import utils
 
 class GraphicKey:
 
-    def __init__(self, parent: tk.Canvas, color: str, dynamic : DynamicMidiData):
+    def __init__(self, parent: tk.Canvas, index : int, color: str, dynamic : DynamicMidiData):
         self.shape = parent.create_rectangle(0, 0, 40, 40, fill=color)
         self.parent = parent
         self.x = 0
         self.y = 0
+        self.index = index
         self.width = 0
         self.height = 0
         self.dynamics = dynamic
@@ -256,10 +256,10 @@ class PianoCreator88(PianoCreator):
             color = prototype_key.color
             if color == "white":
                 normalized_position = position_pointer
-                visual = GraphicKey(canvas, "white", dynamic)
+                visual = GraphicKey(canvas, i,"white", dynamic)
             else:
                 normalized_position = position_pointer - 0.25
-                visual = GraphicKey(canvas, "black", dynamic)
+                visual = GraphicKey(canvas, i,"black", dynamic)
             notes = []
             actual_key = PianoKey(index, visual, color, normalized_position, notes)
             actual_key.visual.apply_graphics(gparams)

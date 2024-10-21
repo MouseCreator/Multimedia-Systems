@@ -1,14 +1,14 @@
 import threading
 import tkinter as tk
 from abc import abstractmethod
-from tkinter import ttk, Button
+from tkinter import ttk
 from tkinter import colorchooser
 
 from abc import ABC
 
 from dynamic import DynamicMidiData, Defaults
 from global_controls import GlobalControls
-from message_passing import MessagePassing, ChannelColorMessage, TickMessage, LengthMessage
+from message_passing import MessagePassing, ChannelColorMessage, TickMessage, LengthMessage, ControlMessage
 
 
 class SliderComponent(ABC):
@@ -90,11 +90,39 @@ class LookaheadSlider(SliderComponent):
         self.just_moved_flag.clear()
         return self.last_move_to_pos
 
+class PauseState:
+    def __init__(self):
+        self.changed = threading.Event()
+        self.changed.clear()
+        self.publish = None
+    def state_changed(self):
+        return self.changed.is_set()
+    def put(self, string):
+        self.publish = string
+        self.changed.set()
+    def consume_state(self):
+        self.changed.clear()
+        res = self.publish
+        self.publish = None
+        return res
+
+    def reset(self):
+        self.changed.clear()
+        self.publish = None
+
 
 class SideMenu:
     btn : tk.Button
     btn2 : tk.Button
     def __init__(self, parent: tk.Frame, global_c : GlobalControls, dynamics: DynamicMidiData, message_passing : MessagePassing):
+        self.lookahead = None
+        self.note_size_slider = None
+        self.label1 = None
+        self.timeline = None
+        self.slider = None
+        self.bottom_frame = None
+        self.top_frame = None
+        self.pause_state = PauseState()
         self.parent = parent
         self.dynamics = dynamics
         self.global_c = global_c
@@ -103,7 +131,6 @@ class SideMenu:
         self.color_frames = []
         self.canvas = tk.Canvas(self.parent)
         self.scrollbar = ttk.Scrollbar(self.parent, orient="vertical", command=self.canvas.yview)
-
         self.scrollable_frame = tk.Frame(self.canvas)
 
         self.scrollable_frame.bind(
@@ -122,6 +149,9 @@ class SideMenu:
     def update(self, millis):
         self._read_messages()
 
+        if self.pause_state.state_changed():
+            state_str = self.pause_state.consume_state()
+            self.message_passing.post_message(ControlMessage(state_str))
         if self.lookahead.just_moved():
             new_lookahead = self.lookahead.consume()
             self.message_passing.post_message(LengthMessage(new_lookahead))
@@ -137,6 +167,7 @@ class SideMenu:
             self.btn.config(text="Finish")
         if self.message_passing.pop_message("sidebar") is not None:
             self.btn.config(text="Play")
+            self.pause_state.reset()
             for i in range(0, Defaults.channel_count()):
                 self.color_frames[i].config(bg = self.dynamics.channel_colors[i])
             self.slider.config(from_=Defaults.time_before(),to=self.dynamics.duration_ticks)
@@ -149,6 +180,7 @@ class SideMenu:
             self.timeline.set_value(0)
     def create(self, parent):
         self.top_frame = tk.Frame(parent)
+
         self.top_frame.grid(row=0, column=0, padx=1, pady=1)
         self.bottom_frame = tk.Frame(parent)
         self.bottom_frame.grid(row=1, column=0, padx=1, pady=1)
@@ -180,9 +212,11 @@ class SideMenu:
         if self.global_c.is_playing.is_set():
             self.global_c.is_playing.clear()
             self.btn.config(text="Play")
+            self.pause_state.put("pause")
         else:
             self.global_c.is_playing.set()
             self.btn.config(text="Pause")
+            self.pause_state.put("play")
     @staticmethod
     def _validate_numeric_input(new_value):
         if new_value.isdigit() or new_value == "":
