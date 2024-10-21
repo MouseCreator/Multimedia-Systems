@@ -37,11 +37,15 @@ class UnloadFile(Message):
 class UpdateSideBar(Message):
     def topic(self):
         return "sidebar"
+
+class ResetOnUnload(Message):
+    def topic(self) -> str:
+        return "reset_on_unload"
 class TopicConfig:
     single_message_topic : List[str]
     multi_message_topic : List[str]
     def __init__(self):
-        self.single_message_topic = ["control", "tick", "length", "load_file", "unload_file", "finish", "sidebar"]
+        self.single_message_topic = ["control", "tick", "length", "load_file", "unload_file", "finish", "sidebar", "reset_on_unload"]
         self.multi_message_topic = ["color"]
 
 class MessagePassing:

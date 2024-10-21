@@ -138,9 +138,15 @@ class SideMenu:
         if self.message_passing.pop_message("sidebar") is not None:
             self.btn.config(text="Play")
             for i in range(0, Defaults.channel_count()):
-                self.color_frames[i] = self.dynamics.channel_colors[i]
+                self.color_frames[i].config(bg = self.dynamics.channel_colors[i])
             self.slider.config(from_=Defaults.time_before(),to=self.dynamics.duration_ticks)
             self.timeline.set_value(Defaults.time_before())
+        if self.message_passing.pop_message("reset_on_unload") is not None:
+            self.btn.config(text="Play")
+            for i in range(0, Defaults.channel_count()):
+                self.color_frames[i].config(bg = self.dynamics.channel_colors[i])
+            self.slider.config(from_=0,to=0)
+            self.timeline.set_value(0)
     def create(self, parent):
         self.top_frame = tk.Frame(parent)
         self.top_frame.grid(row=0, column=0, padx=1, pady=1)
@@ -163,7 +169,7 @@ class SideMenu:
         self.label1.grid(row=1, column=2, padx=5, pady=5)
 
         for i in range(16):
-            color_frame = tk.Frame(self.bottom_frame, width=10, height=10, bg=self.dynamics.channel_colors[i], bd=1, relief="solid")
+            color_frame = tk.Frame(self.bottom_frame, width=20, height=20, bg=self.dynamics.channel_colors[i], bd=1, relief="solid")
             color_button = tk.Button(self.bottom_frame, text=f"Channel {i}", command=lambda cn=i: self._pick_color(cn))
             color_frame.grid(row=2 + i // 2, column=i % 2 * 2, padx=5, pady=5)
             color_button.grid(row=2 + i // 2, column=i % 2 * 2 + 1, padx=5, pady=5)

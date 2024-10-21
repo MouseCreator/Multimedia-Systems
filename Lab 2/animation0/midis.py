@@ -134,7 +134,7 @@ class MidiMapper:
                                   'midi_port',
                                   'end_of_track',
                                   'pitchwheel']:
-                    print(msg)
+                    pass # skip meta messages
                 else:
                     raise Exception(f"UNKNOWN MESSAGE TYPE: {msg.type}")
             if current_time > duration_ticks:
