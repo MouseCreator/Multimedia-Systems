@@ -24,8 +24,12 @@ class GraphicKey:
         self.channel_stack.append(channel)
         color = self.dynamics.channel_colors[channel]
         self.parent.itemconfig(self.shape, fill=color)
-
-
+    def update_color(self):
+        if not self.channel_stack:
+            return
+        last = self.channel_stack[len(self.channel_stack)-1]
+        color = self.dynamics.channel_colors[last]
+        self.parent.itemconfig(self.shape, fill=color)
     def release(self, channel):
         last_index = utils.last_index_of(self.channel_stack, channel)
         if last_index == -1:
@@ -149,6 +153,10 @@ class Piano:
     def release_all(self):
         for key in self.keys:
             key.to_initial_state()
+
+    def update_colors(self):
+        for key in self.keys:
+            key.visual.update_color()
 
 
 class KeyboardParams:

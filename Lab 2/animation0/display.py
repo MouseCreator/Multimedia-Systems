@@ -4,7 +4,7 @@ from actions import MidiAction, ActionFactory
 from MusicPlayer import MusicPlayer
 from global_controls import GlobalControls
 from message_navigator import CachingMidiNavigator
-from message_passing import MessagePassing, TickMessage
+from message_passing import MessagePassing, TickMessage, FinishTrackMessage, LengthMessage, ChannelColorMessage
 from midis import MidiFile, SoundEvent
 from typing import List, Dict
 from piano import Piano, PianoKey
@@ -207,7 +207,6 @@ class SlidingNotes:
         tick_note_fully_entered = sliding_note.end_tick - lookahead
         note_ticks_top = max(0, current_tick - tick_note_fully_entered)
 
-
         note_ticks_bottom = lookahead
         if sliding_note.press_tick > current_tick:
             note_ticks_bottom = (current_tick - note_created)
@@ -234,6 +233,12 @@ class SlidingNotes:
         for note in self.active_notes:
             note.clean()
         self.active_notes.clear()
+
+    def update_colors(self, channel):
+        color = self.dynamics.channel_colors[channel]
+        for note in self.active_notes:
+            if note.channel_id == channel:
+                note.set_channel_color(color)
 
 
 class NoteAnimationHandler:
@@ -286,6 +291,10 @@ class NoteAnimationHandler:
         self.piano.release_all()
         self.sliding_notes.clear()
         self.notes_map.clear()
+
+    def update_colors(self, channel):
+        self.piano.update_colors()
+        self.sliding_notes.update_colors(channel)
 
 
 class MidiNotesDisplay:
@@ -347,9 +356,24 @@ class MidiNotesDisplay:
         tick_message = self.message_passing.pop_message("tick")
         if tick_message is not None and isinstance(tick_message, TickMessage):
             self.set_time(tick_message.tick)
+        length_message = self.message_passing.pop_message("length")
+        if length_message is not None and isinstance(length_message, LengthMessage):
+            self._change_lookahead(length_message.length)
+        color_message = self.message_passing.pop_message("color")
+        if color_message is not None and isinstance(color_message, ChannelColorMessage):
+            self._update_channel_color(color_message.updated_channel)
+    def _change_lookahead(self, measure):
+        self.dynamics.ticks_lookahead = measure * 400
+        self.dynamics.pixels_per_tick = self.canvas.winfo_height() / self.dynamics.ticks_lookahead
+        self.note_animation.clear()
+        self.midi_notes_state.set_time(self.dynamics.current_tick)
+
+    def _update_channel_color(self, channel):
+        self.note_animation.update_colors(channel)
     def _finish(self):
         self.global_control.is_finished.set()
         self.stop()
+        self.message_passing.post_message(FinishTrackMessage())
 
     def play(self):
         if not self.global_control.is_loaded.is_set():
@@ -363,7 +387,6 @@ class MidiNotesDisplay:
         self.note_animation.clear()
         self.dynamics.current_tick = new_tick
         self.midi_notes_state.set_time(new_tick)
-        self.midi_notes_state.move_time_forward()
 
 
     def stop(self):

@@ -6,24 +6,25 @@ class Message(ABC):
     def topic(self) -> str:
         pass
 
-
-class ControlMessage(Message):
-    # play, pause
-    def __init__(self, control):
-        self.control = control
-    def topic(self):
-        return "control"
 class TickMessage(Message):
     # move to tick
     def __init__(self, tick : int):
         self.tick = tick
     def topic(self) -> str:
         return "tick"
+class FinishTrackMessage(Message):
+    def topic(self) -> str:
+        return "finish"
 class ChannelColorMessage(Message):
     def __init__(self, update_channel : int):
         self.updated_channel = update_channel
     def topic(self) -> str:
         return "color"
+class LengthMessage(Message):
+    def __init__(self, length : int):
+        self.length = length
+    def topic(self) -> str:
+        return "length"
 class LoadFile(Message):
     # load file by name
     def __init__(self, filename):
@@ -39,8 +40,8 @@ class TopicConfig:
     single_message_topic : List[str]
     multi_message_topic : List[str]
     def __init__(self):
-        self.single_message_topic = ["control", "tick", "load_file", "unload_file"]
-        self.multi_message_topic = []
+        self.single_message_topic = ["control", "tick", "length", "load_file", "unload_file", "finish"]
+        self.multi_message_topic = ["color"]
 
 class MessagePassing:
     topics_map: Dict[str, str]

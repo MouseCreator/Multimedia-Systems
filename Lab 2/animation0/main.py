@@ -86,7 +86,6 @@ class MidiPlayer:
         self.apply_metadata(mapped_file)
 
         self.side_menu_control = SideMenu(self.side_pane, self.global_controls, self.dynamics, self.message_passing)
-
         self.size_tracker = SizeTracker(self.root)
         self.size_tracker.register(self.on_resize)
         self.size_tracker.bind_config()
@@ -97,10 +96,7 @@ class MidiPlayer:
         self.notes_display.play()
         self.engine.register(self.side_menu_control.update)
         self.engine.register(self.notes_display.update)
-        self.engine.register(self._clean_message_passing)
         self.engine.start()
-    def _clean_message_passing(self, millis):
-        self.message_passing.ignore_rest()
     def main_loop(self):
         self.root.mainloop()
 
