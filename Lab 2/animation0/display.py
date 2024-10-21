@@ -4,11 +4,13 @@ from actions import MidiAction, ActionFactory
 from MusicPlayer import MusicPlayer
 from global_controls import GlobalControls
 from message_navigator import CachingMidiNavigator
-from message_passing import MessagePassing, TickMessage, FinishTrackMessage, LengthMessage, ChannelColorMessage
-from midis import MidiFile, SoundEvent
+from message_passing import MessagePassing, TickMessage, FinishTrackMessage, LengthMessage, ChannelColorMessage, \
+    LoadFile, UpdateSideBar
+from midis import MidiFile, SoundEvent, MidiMapper
 from typing import List, Dict
 from piano import Piano, PianoKey
-from dynamic import DynamicMidiData
+from dynamic import DynamicMidiData, Defaults
+
 
 class MidiService:
     @staticmethod
@@ -49,6 +51,8 @@ class MidiNotesState:
         self.navigator.on_unload_file()
 
     def set_time(self, time_to_set):
+        self.dynamic.channel_programs = [0] * Defaults.channel_count()
+        self.dynamic.current_tempo = Defaults.tempo()
         nav_state = self.navigator.set_time_to(time_to_set)
         self.slide_pointer = nav_state.pressed_pointer
         self.create_pointer = nav_state.created_pointer
@@ -326,7 +330,7 @@ class MidiNotesDisplay:
         self.global_control.is_loaded.set()
         self.global_control.is_playing.clear()
         self.global_control.is_finished.clear()
-
+        self.message_passing.post_message(UpdateSideBar())
     def clear_notes(self):
         self.global_control.is_loaded.clear()
         self.global_control.is_playing.clear()
@@ -339,10 +343,9 @@ class MidiNotesDisplay:
         self.note_animation.when_resized()
 
     def update(self, past_millis):
-        if not self.global_control.is_loaded.is_set():
-            print("NOT LOADED")
-            return
         self._read_messages()
+        if not self.global_control.is_loaded.is_set():
+            return
         if self.global_control.is_playing.is_set():
             ticks_passed = MidiService.calculate_ticks(past_millis, self.dynamics)
             self.midi_notes_state.move_time_forward()
@@ -362,6 +365,10 @@ class MidiNotesDisplay:
         color_message = self.message_passing.pop_message("color")
         if color_message is not None and isinstance(color_message, ChannelColorMessage):
             self._update_channel_color(color_message.updated_channel)
+        load_file_message = self.message_passing.pop_message("load_file")
+        if load_file_message is not None and isinstance(load_file_message, LoadFile):
+            file = load_file_message.filename
+            self.load_file(file)
     def _change_lookahead(self, measure):
         self.dynamics.ticks_lookahead = measure * 400
         self.dynamics.pixels_per_tick = self.canvas.winfo_height() / self.dynamics.ticks_lookahead
@@ -387,7 +394,23 @@ class MidiNotesDisplay:
         self.note_animation.clear()
         self.dynamics.current_tick = new_tick
         self.midi_notes_state.set_time(new_tick)
+    def load_file(self, file_to_load):
+        self.unload()
+        mapped_file = MidiMapper.map_to_midi_file(file_to_load)
+        self.apply_metadata(mapped_file)
+        self.load_notes(mapped_file)
+        self.set_time(Defaults.time_before())
+    def unload(self):
+        self.clear_notes()
+        self.music_player.reset()
+        self.note_animation.clear()
+        self.dynamics.current_tick = 0
+        self.dynamics.channel_programs = [0] * Defaults.channel_count()
+        self.dynamics.channel_colors = list(self.dynamics.default_colors)
 
+    def apply_metadata(self, mapped_file):
+        self.dynamics.ticks_per_beat = mapped_file.metadata.ticks_per_beat
+        self.dynamics.duration_ticks = mapped_file.metadata.duration_ticks
 
     def stop(self):
         if not self.global_control.is_loaded.is_set():

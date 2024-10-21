@@ -26,7 +26,6 @@ class LengthMessage(Message):
     def topic(self) -> str:
         return "length"
 class LoadFile(Message):
-    # load file by name
     def __init__(self, filename):
         self.filename = filename
 
@@ -35,12 +34,14 @@ class LoadFile(Message):
 class UnloadFile(Message):
     def topic(self) -> str:
         return "unload_file"
-
+class UpdateSideBar(Message):
+    def topic(self):
+        return "sidebar"
 class TopicConfig:
     single_message_topic : List[str]
     multi_message_topic : List[str]
     def __init__(self):
-        self.single_message_topic = ["control", "tick", "length", "load_file", "unload_file", "finish"]
+        self.single_message_topic = ["control", "tick", "length", "load_file", "unload_file", "finish", "sidebar"]
         self.multi_message_topic = ["color"]
 
 class MessagePassing:

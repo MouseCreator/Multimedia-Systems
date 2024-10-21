@@ -6,7 +6,7 @@ from tkinter import colorchooser
 
 from abc import ABC
 
-from dynamic import DynamicMidiData
+from dynamic import DynamicMidiData, Defaults
 from global_controls import GlobalControls
 from message_passing import MessagePassing, ChannelColorMessage, TickMessage, LengthMessage
 
@@ -135,12 +135,18 @@ class SideMenu:
     def _read_messages(self):
         if self.message_passing.pop_message("finish") is not None:
             self.btn.config(text="Finish")
+        if self.message_passing.pop_message("sidebar") is not None:
+            self.btn.config(text="Play")
+            for i in range(0, Defaults.channel_count()):
+                self.color_frames[i] = self.dynamics.channel_colors[i]
+            self.slider.config(from_=Defaults.time_before(),to=self.dynamics.duration_ticks)
+            self.timeline.set_value(Defaults.time_before())
     def create(self, parent):
         self.top_frame = tk.Frame(parent)
         self.top_frame.grid(row=0, column=0, padx=1, pady=1)
         self.bottom_frame = tk.Frame(parent)
         self.bottom_frame.grid(row=1, column=0, padx=1, pady=1)
-        self.slider = tk.Scale(self.top_frame, from_=0, length=150, to=self.dynamics.duration_ticks, orient='horizontal')
+        self.slider = tk.Scale(self.top_frame, from_=0, to=0, length=150, orient='horizontal')
         self.slider.grid(row=0, column=1, padx=5, pady=5)
         self.timeline = TimelineSlider(self.top_frame, self.slider)
         self.btn = tk.Button(self.top_frame, width=8, text="Pause",command=self._toggle_pause)
