@@ -12,6 +12,9 @@ class MidiAction(ABC):
     @abstractmethod
     def end_when(self):
         pass
+    @abstractmethod
+    def is_long_lasting(self) -> bool:
+        pass
 
     @abstractmethod
     def created_by_id(self):
@@ -63,10 +66,10 @@ class SoundAction(MidiAction):
 
     def on_forced_register(self):
         self.animation_handler.on_register(self.sound_event)
-
     def on_forced_press(self):
         self.animation_handler.on_press(self.sound_event)
-
+    def is_long_lasting(self):
+        return False
 
 class TempoAction(MidiAction):
 
@@ -85,6 +88,8 @@ class TempoAction(MidiAction):
 
     def on_press(self):
         self.dynamics.current_tempo = self.tempo_event.tempo
+    def is_long_lasting(self):
+        return True
 
 
 class ProgramAction(MidiAction):
@@ -108,6 +113,9 @@ class ProgramAction(MidiAction):
         self.dynamics.channel_programs[channel] = program
         self.music_player.enqueue(ProgramMessage(program, channel))
 
+    def is_long_lasting(self):
+        return True
+
 
 class ControlAction(MidiAction):
     def created_by_id(self):
@@ -128,6 +136,9 @@ class ControlAction(MidiAction):
         control = self.control_event.control
         value = self.control_event.value
         self.music_player.enqueue(ControlMessage(control, value, channel))
+
+    def is_long_lasting(self):
+        return True
 
 
 class ActionFactory:

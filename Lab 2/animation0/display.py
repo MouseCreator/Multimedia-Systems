@@ -4,6 +4,7 @@ from actions import MidiAction, ActionFactory
 from MusicPlayer import MusicPlayer
 from global_controls import GlobalControls
 from message_navigator import CachingMidiNavigator
+from message_passing import MessagePassing, TickMessage
 from midis import MidiFile, SoundEvent
 from typing import List, Dict
 from piano import Piano, PianoKey
@@ -51,6 +52,7 @@ class MidiNotesState:
         nav_state = self.navigator.set_time_to(time_to_set)
         self.slide_pointer = nav_state.pressed_pointer
         self.create_pointer = nav_state.created_pointer
+
         self.pressed_actions = list(nav_state.pressed_list)
         for event in nav_state.created_list:
             event.on_forced_register()
@@ -152,6 +154,8 @@ class SlidingNote:
         self.pos_y = new_y
         self.canvas.move(self.shape, by_x, by_y)
 
+    def clean(self):
+        self.canvas.delete(self.shape)
 
 
 class SlidingNotes:
@@ -165,6 +169,7 @@ class SlidingNotes:
         self.active_notes.append(sliding_note)
 
     def exclude(self, sliding_note : SlidingNote):
+        sliding_note.clean()
         self.active_notes.remove(sliding_note)
 
     def update_every_note(self, ticks_passed):
@@ -226,6 +231,8 @@ class SlidingNotes:
             self.adjust_position(note)
 
     def clear(self):
+        for note in self.active_notes:
+            note.clean()
         self.active_notes.clear()
 
 
@@ -278,6 +285,7 @@ class NoteAnimationHandler:
     def clear(self):
         self.piano.release_all()
         self.sliding_notes.clear()
+        self.notes_map.clear()
 
 
 class MidiNotesDisplay:
@@ -287,8 +295,10 @@ class MidiNotesDisplay:
                  piano : Piano,
                  dynamics: DynamicMidiData,
                  music_player : MusicPlayer,
-                 global_control : GlobalControls):
+                 global_control : GlobalControls,
+                 message_passing : MessagePassing):
         self.root = root
+        self.message_passing = message_passing
         self.dynamics = dynamics
         self.canvas = tk.Canvas(root, bg='gray')
         self.midi_notes_state = MidiNotesState(dynamics)
@@ -323,6 +333,7 @@ class MidiNotesDisplay:
         if not self.global_control.is_loaded.is_set():
             print("NOT LOADED")
             return
+        self._read_messages()
         if self.global_control.is_playing.is_set():
             ticks_passed = MidiService.calculate_ticks(past_millis, self.dynamics)
             self.midi_notes_state.move_time_forward()
@@ -332,7 +343,10 @@ class MidiNotesDisplay:
                 print("FINISH")
                 self._finish()
             self.dynamics.current_tick = self.dynamics.current_tick + ticks_passed
-
+    def _read_messages(self):
+        tick_message = self.message_passing.pop_message("tick")
+        if tick_message is not None and isinstance(tick_message, TickMessage):
+            self.set_time(tick_message.tick)
     def _finish(self):
         self.global_control.is_finished.set()
         self.stop()
@@ -345,12 +359,11 @@ class MidiNotesDisplay:
         self.global_control.is_playing.set()
 
     def set_time(self, new_tick):
-        if self.global_control.is_playing.is_set():
-            return
         self.music_player.reset()
-
+        self.note_animation.clear()
         self.dynamics.current_tick = new_tick
         self.midi_notes_state.set_time(new_tick)
+        self.midi_notes_state.move_time_forward()
 
 
     def stop(self):

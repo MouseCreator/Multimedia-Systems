@@ -60,18 +60,20 @@ class MidiNavigator(ABC):
                 pressed_pointer += 1
             else:
                 break
-        to_pop = []
+        unpressed_list = []
         for event in pressed.values():
-            if updated_into_notes >= event.end_when():
-                to_pop.append(event.created_by_id())
+            if event.is_long_lasting():
+                continue
+            elif updated_into_notes >= event.end_when():
+                unpressed_list.append(event.created_by_id())
 
-        for key in to_pop:
+        for key in unpressed_list:
             pressed.pop(key)
-
+        created_actual = self._to_event_list(created_map)
         return MidiNavigatorState(
             created_pointer=created_pointer,
             pressed_pointer=pressed_pointer,
-            created_list=created_list,
+            created_list=created_actual,
             pressed_list=pressed_list
         )
 

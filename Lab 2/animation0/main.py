@@ -6,9 +6,11 @@ from display import MidiNotesDisplay
 from dynamic import DynamicMidiData
 from engine import Engine
 from global_controls import GlobalControls
+from message_passing import MessagePassing
 from midis import MidiMapper
 from piano import PianoCreator88, PianoCreationParams, Piano
 from defines import *
+from side_menu import SideMenu
 from size import SizeTracker
 
 FILE_TO_LOAD = "resource/audio/polkka.mid"
@@ -20,10 +22,11 @@ class MidiPlayer:
     engine: Engine | None
     music_player: MusicPlayer | None
     global_controls : GlobalControls | None
-
+    side_menu_control : SideMenu | None
     def __init__(self):
         self.root = tk.Tk()
         self.dynamics = DynamicMidiData()
+        self.message_passing = MessagePassing()
         self.midi_file = None
         self.piano = None
         self.menu_bar = None
@@ -36,6 +39,7 @@ class MidiPlayer:
         self.notes_display = None
         self.music_player = None
         self.global_controls = None
+        self.side_menu_control = None
 
     def on_resize(self, width, height):
         self.piano.resize(width-DEFINES.ABS_SIDEBAR_WIDTH, height*DEFINES.REL_PIANO_HEIGHT)
@@ -76,9 +80,12 @@ class MidiPlayer:
             self.piano,
             self.dynamics,
             self.music_player,
-            self.global_controls)
+            self.global_controls,
+            self.message_passing)
         mapped_file = MidiMapper.map_to_midi_file(FILE_TO_LOAD)
         self.apply_metadata(mapped_file)
+
+        self.side_menu_control = SideMenu(self.side_pane, self.global_controls, self.dynamics, self.message_passing)
 
         self.size_tracker = SizeTracker(self.root)
         self.size_tracker.register(self.on_resize)
@@ -88,9 +95,12 @@ class MidiPlayer:
         self.notes_display.load_notes(mapped_file)
         self.notes_display.set_time(8000)
         self.notes_display.play()
+        self.engine.register(self.side_menu_control.update)
         self.engine.register(self.notes_display.update)
+        self.engine.register(self._clean_message_passing)
         self.engine.start()
-
+    def _clean_message_passing(self, millis):
+        self.message_passing.ignore_rest()
     def main_loop(self):
         self.root.mainloop()
 

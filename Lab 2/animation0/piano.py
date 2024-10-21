@@ -24,7 +24,6 @@ class GraphicKey:
         self.channel_stack.append(channel)
         color = self.dynamics.channel_colors[channel]
         self.parent.itemconfig(self.shape, fill=color)
-        print("Key is pressed!")
 
 
     def release(self, channel):
@@ -40,7 +39,6 @@ class GraphicKey:
         new_channel = self.channel_stack[last_index]
         new_color = self.dynamics.channel_colors[new_channel]
         self.parent.itemconfig(self.shape, fill=new_color)
-        print("Key is released!")
     def to_original_color(self):
         self.channel_stack.clear()
         self.parent.itemconfig(self.shape, fill=self.original_color)

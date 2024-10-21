@@ -1,6 +1,5 @@
 import time
 import threading
-from itertools import count
 
 
 class Engine:
