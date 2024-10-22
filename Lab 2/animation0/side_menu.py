@@ -155,13 +155,13 @@ class SideMenu:
         if self.lookahead.just_moved():
             new_lookahead = self.lookahead.consume()
             self.message_passing.post_message(LengthMessage(new_lookahead))
+        if self.timeline.just_moved():
+            val = self.timeline.consume()
+            self.message_passing.post_message(TickMessage(val))
+        elif self.timeline.should_track():
+            self.timeline.set_value(self.dynamics.current_tick)
 
-        if self.global_c.is_playing.is_set():
-            if self.timeline.just_moved():
-                val = self.timeline.consume()
-                self.message_passing.post_message(TickMessage(val))
-            elif self.timeline.should_track():
-                self.timeline.set_value(self.dynamics.current_tick)
+
     def _read_messages(self):
         if self.message_passing.pop_message("finish") is not None:
             self.btn.config(text="Finish")
