@@ -1,6 +1,7 @@
 import numpy as np
 
 import utils
+from psnr import psnr
 from loader import load_image, to_image
 
 
@@ -36,9 +37,10 @@ def idct(shifted_image : np.array):
 def compress_block(block : np.array):
     shifted = block - 128
     after_dct = dct(shifted)
-    quantized = after_dct / quantization_table
+    quantized = np.round(after_dct / quantization_table)
     return np.round(quantized)
 def compress(input_image : np.array):
+    input_image = input_image.copy()
     n = input_image.shape[0] // 8
     for i in range(n):
         for j in range(n):
@@ -50,9 +52,10 @@ def compress(input_image : np.array):
 def decompress_block(block : np.array):
     dequantized = block.astype(np.int16) * quantization_table
     before_dct = idct(dequantized)
-    return before_dct + 128
+    return np.clip(before_dct + 128, 0, 255)
 
 def decompress(input_image : np.array):
+    input_image = input_image.copy()
     n = input_image.shape[0] // 8
     for i in range(n):
         for j in range(n):
@@ -74,4 +77,8 @@ compressed_portrait = utils.scale_matrix(compressed)
 to_image(compressed_portrait, WORK_DIR + short_name + "_c" + extension)
 decompressed = decompress(compressed)
 to_image(decompressed, WORK_DIR + short_name + "_d" + extension)
+
+_psnr = psnr(initial, decompressed)
+
+print(f"PSNR: {_psnr}")
 
