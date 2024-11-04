@@ -63,14 +63,14 @@ def decompress(input_image : np.array):
             new_block = decompress_block(block)
             input_image[i * 8:(i + 1) * 8, j * 8:(j + 1) * 8] = new_block
     return input_image
-
+print("DCT transform")
 WORK_DIR = "dct/"
 FILENAME = "lena.png"
-
+INPUT_DIR = "input/"
 split = FILENAME.split(".", 2)
 short_name = split[0]
 extension = "." + split[1]
-initial = load_image(WORK_DIR + FILENAME)
+initial = load_image(INPUT_DIR + FILENAME)
 
 compressed = compress(initial)
 compressed_portrait = utils.scale_matrix(compressed)
