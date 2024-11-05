@@ -9,7 +9,7 @@ def avg_val(i1, i2):
     return (i1 + i2) / 2
 def avg_dif(i1, i2):
     return (i1 - i2) / 2
-def dwt_1d(array : np.array, level: int):
+def dwt_1d(array : np.array):
     xd = array.copy()
 
     p = xd.copy()

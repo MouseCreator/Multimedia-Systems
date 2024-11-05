@@ -36,7 +36,7 @@ def idwt_1d(array: np.array):
 
     return output
 
-LEVELS = 1
+LEVELS = 2
 def dwt(block : np.array):
     (n, m) = block.shape
     for level in range(0, LEVELS):
